@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.0.7",
+        "version": "0.0.8",
         "news": {
-            "0.0.7": {
+            "0.0.8": {
                 "en": "initial version",
                 "de": "erste Version",
                 "ru": "Первоначальная версия",

@@ -22,11 +22,19 @@ You can define the same variable name inside a child without produce a conflict 
 var lastMessageTime = 0;
 var lastMessageText = '';
 var users = {};
-
 var firebase = require("firebase");
 var uid;
 var database;
 var loggedIn = false;
+
+var config = {
+    apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
+    authDomain: "iobroker-iogo.firebaseapp.com",
+    databaseURL: "https://iobroker-iogo.firebaseio.com",
+    projectId: "iobroker-iogo",
+    storageBucket: "iobroker-iogo.appspot.com",
+    messagingSenderId: "1009148969935"
+  };
 
 // is called when adapter shuts down - callback has to be called under any circumstances!
 adapter.on('unload', function (callback) {
@@ -75,17 +83,18 @@ function main() {
 
     // The adapters config (in the instance object everything under the attribute "native") is accessible via
     // adapter.config:
-    var config = {
-        apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
-        authDomain: "iobroker-iogo.firebaseapp.com",
-        databaseURL: "https://iobroker-iogo.firebaseio.com",
-        projectId: "iobroker-iogo",
-        storageBucket: "iobroker-iogo.appspot.com",
-        messagingSenderId: "1009148969935"
-      };
     firebase.initializeApp(config);
+    if(adapter.config.email == null){
+        adapter.log.error('Config email is null');
+        return;
+    }
+    if(adapter.config.password == null){
+        adapter.log.error('Config password is null');
+        return;
+    }
     firebase.auth().signInWithEmailAndPassword(adapter.config.email, adapter.config.password).catch(function(error) {
         adapter.log.error('Authentication: ' + error.code + ' # ' + error.message);
+        return;
       });
     firebase.auth().onAuthStateChanged(function(user) {
         loggedIn = false;
@@ -100,6 +109,8 @@ function main() {
           // User is signed out.
           adapter.log.warn('logged out as:' + uid);
           uid = null;
+          users = {};
+          return;
         }
     });
     database = firebase.database();
@@ -109,11 +120,12 @@ function main() {
 
     adapter.getStates('*.token', function (err, states) {
         for (var id in states) {
-            adapter.log.debug('"' + id + '" = "' + states[id].val);
-            var val = states[id].val;
-            var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
-            users[user_name] = val;
-            adapter.log.info('user ' + user_name + ' captured');
+            if(staes[id] != null && states[id].val != null){
+                adapter.log.debug('"' + id + '" = "' + states[id].val);
+                var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
+                users[user_name] = states[id].val;
+                adapter.log.info('user ' + user_name + ' captured');
+            }
         }
     });
 }
