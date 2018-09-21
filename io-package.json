@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.0.8",
+        "version": "0.0.9",
         "news": {
-            "0.0.8": {
+            "0.0.9": {
                 "en": "initial version",
                 "de": "erste Version",
                 "ru": "Первоначальная версия",
@@ -62,5 +62,18 @@
     "objects": [
     ],
     "instanceObjects": [
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "If connected to ioGo server",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
     ]
 }

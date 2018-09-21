@@ -52,7 +52,7 @@ As this adapter is using firebase-admin, it supports Node.js 6.0 and higher.
 
 ## Changelog
 
-### 0.0.7
+### 0.0.9
 * (nisio) initial release
 
 ## License
