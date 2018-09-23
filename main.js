@@ -20,6 +20,14 @@ var lastMessageTime = 0;
 var lastMessageText = '';
 var users = {};
 
+var config = {
+    apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
+    authDomain: "iobroker-iogo.firebaseapp.com",
+    databaseURL: "https://iobroker-iogo.firebaseio.com",
+    projectId: "iobroker-iogo",
+    storageBucket: "iobroker-iogo.appspot.com",
+    messagingSenderId: "1009148969935"
+  };
 var firebase = require("firebase");
 var uid;
 var database;
@@ -71,7 +79,6 @@ adapter.on('objectChange', function (id, obj) {
 // is called if a subscribed state changes
 adapter.on('stateChange', function (id, state) {
     // Warning, state can be null if it was deleted
-    //adapter.log.info('stateChange ' + id + ' ' + JSON.stringify(state));
 
     if(id.endsWith('.token')){
         var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
@@ -122,21 +129,16 @@ adapter.on('ready', function () {
 });
 
 function main() {
+    if(adapter.config.email == null || adapter.config.password == null){
+        adapter.log.warn('Credentials missing, please add email and password in config!');
+        return;
+    }
 
     // The adapters config (in the instance object everything under the attribute "native") is accessible via
-    // adapter.config:
-    var config = {
-        apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
-        authDomain: "iobroker-iogo.firebaseapp.com",
-        databaseURL: "https://iobroker-iogo.firebaseio.com",
-        projectId: "iobroker-iogo",
-        storageBucket: "iobroker-iogo.appspot.com",
-        messagingSenderId: "1009148969935"
-      };
     firebase.initializeApp(config);
     firebase.auth().signInWithEmailAndPassword(adapter.config.email, adapter.config.password).catch(function(error) {
         adapter.log.error('Authentication: ' + error.code + ' # ' + error.message);
-        adapter.stop
+        return;
       });
     database = firebase.database();
 
@@ -188,7 +190,7 @@ function isValidId(id){
 function clearDatabase(){
     database.ref('states/' + uid).remove();
     adapter.log.info('removed states from remote database');
-    database.ref('obhects/' + uid).remove();
+    database.ref('objects/' + uid).remove();
     adapter.log.info('removed objects from remote database');
     database.ref('enums/' + uid).remove();
     adapter.log.info('removed enums from remote database');
@@ -296,18 +298,17 @@ function uploadStates(){
 }
 
 function registerListener(){
-    dbStatesRef = firebase.database().ref('states/' + uid);
-    dbStatesRef.on('child_changed',function(data){
+    dbStatesRef = firebase.database().ref('stateQueues/' + uid);
+    dbStatesRef.on('child_added',function(data){
         adapter.log.debug('data received: ' + JSON.stringify(data));
-        if(data.val().from == 'app'){
-            adapter.setForeignState(data.val().id, data.val().val);
-        }
+        adapter.setForeignState(data.val().id, data.val().val);
+        dbStatesRef.child(data.ref.key).remove();
     });
 }
 
 function removeListener(){
     dbStatesRef = firebase.database().ref('states/' + uid);
-    dbStatesRef.off('child_changed');
+    dbStatesRef.off();
 }
 
 function send(obj){
