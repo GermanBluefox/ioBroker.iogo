@@ -12,7 +12,7 @@
 This adapter is adding extra featrures to the smarthome app ioGo (https://play.google.com/store/apps/details?id=de.nisnagel.iogo).
 Please navigate to settings/account in order to signup with email and password.
 After creating an account in the app, you can use this adapter for push notification.
-Additionally this adapter is storing couurrent states of your smarthome devices.
+Additionally this adapter is storing the current states of your smarthome devices.
 
 ## Configuration
 You should set your account information (email/password). After this start the adapter.
