@@ -34,6 +34,8 @@ var database;
 var dbStatesRef;
 var loggedIn = false;
 var enum_states = {};
+var stateValues = {}; // detect changes
+var stateTypes = {};
 
 // is called when adapter shuts down - callback has to be called under any circumstances!
 adapter.on('unload', function (callback) {
@@ -101,16 +103,19 @@ adapter.on('stateChange', function (id, state) {
             adapter.log.debug('send state: ' + id);
             var tmp = state;
             tmp.id = id;
-            if(state.val !== null){
-                tmp.val = state.val.toString();
-            }
-            database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.debug(id + ' saved successfully');
+            if(stateValues[id] && stateValues[id] != state.val){
+                stateValues[id] = state.val;
+                if(state.val !== null){
+                    tmp.val = state.val.toString();
                 }
-            });
+                database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
+                    if (error) {
+                        adapter.log.error(error);
+                    } else {
+                        adapter.log.debug(id + ' saved successfully');
+                    }
+                });
+            }
         } else{
             adapter.log.error('forbidden path: ' + id);
         }
@@ -247,8 +252,8 @@ function uploadObjects(){
         for (var id in objects) {
             if(enum_states[id] === true && objects[id].type === "state"){
                 if(isValidId(id)){
-                
-                    var node = id.replace(/\./g,'_');       
+                    var node = id.replace(/\./g,'_');
+                    stateTypes[id] = objects[id].type;
                     objectList[node] = JSON.stringify(objects[id]);
                 } else{
                     adapter.log.error('forbidden path: ' + id);
@@ -269,7 +274,6 @@ function uploadObjects(){
 function uploadStates(){
     adapter.getForeignStates('*', function (err, states) {
         var objectList = [];
-        
 
         for (var id in states) {
             if(enum_states[id] === true){
@@ -281,6 +285,8 @@ function uploadStates(){
                     if(states[id].val !== null){
                         tmp.val = states[id].val.toString();
                     }
+                    
+                    stateValues[id] = states[id].val;
                     objectList[node] = tmp;
                 } else{
                     adapter.log.error('forbidden path: ' + id);
@@ -301,7 +307,15 @@ function registerListener(){
     dbStatesRef = firebase.database().ref('stateQueues/' + uid);
     dbStatesRef.on('child_added',function(data){
         adapter.log.debug('data received: ' + JSON.stringify(data));
-        adapter.setForeignState(data.val().id, data.val().val);
+        var id = data.val().id;
+        var val = data.val().val;
+        if(stateTypes[id] = "number"){
+            adapter.setForeignState(id, parseFloat(val));
+        }else if(stateTypes[id] = "boolean"){
+            adapter.setForeignState(id, (val == "true"));
+        }else{
+            adapter.setForeignState(id, val);
+        }
         dbStatesRef.child(data.ref.key).remove();
     });
 }
