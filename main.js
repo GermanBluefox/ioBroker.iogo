@@ -253,7 +253,7 @@ function uploadObjects(){
             if(enum_states[id] === true && objects[id].type === "state"){
                 if(isValidId(id)){
                     var node = id.replace(/\./g,'_');
-                    stateTypes[id] = objects[id].type;
+                    stateTypes[id] = objects[id].common.type;
                     objectList[node] = JSON.stringify(objects[id]);
                 } else{
                     adapter.log.error('forbidden path: ' + id);
