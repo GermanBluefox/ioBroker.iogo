@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.0.11",
+        "version": "0.0.12",
         "news": {
-            "0.0.11": {
+            "0.0.12": {
                 "en": "initial version",
                 "de": "erste Version",
                 "ru": "Первоначальная версия",
@@ -50,7 +50,7 @@
         "keywords": ["iogo", "android", "app"],
         "readme": "https://github.com/nisiode/ioBroker.iogo/blob/master/README.md",
         "loglevel": "info",
-        "type": "general",
+        "type": "visualization",
         "license": "MIT",
         "messagebox": true,
         "restartAdapters": []

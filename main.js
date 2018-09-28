@@ -31,7 +31,8 @@ var config = {
 var firebase = require("firebase");
 var uid;
 var database;
-var dbStatesRef;
+var dbStateQueuesRef;
+var dbObjectQueuesRef;
 var loggedIn = false;
 var enum_states = {};
 var stateValues = {}; // detect changes
@@ -304,25 +305,61 @@ function uploadStates(){
 }
 
 function registerListener(){
-    dbStatesRef = firebase.database().ref('stateQueues/' + uid);
-    dbStatesRef.on('child_added',function(data){
+    dbStateQueuesRef = firebase.database().ref('stateQueues/' + uid);
+    dbStateQueuesRef.on('child_added',function(data){
         adapter.log.debug('data received: ' + JSON.stringify(data));
         var id = data.val().id;
         var val = data.val().val;
-        if(stateTypes[id] = "number"){
+        setState(id, val);
+        dbStateQueuesRef.child(data.ref.key).remove();
+    });
+    dbObjectQueuesRef = firebase.database().ref('objectQueues/' + uid);
+    dbObjectQueuesRef.on('child_added',function(data){
+        adapter.log.debug('data received: ' + JSON.stringify(data.val()));
+        var obj = data.val();
+        var id = obj.id;
+        var val = obj.val;
+        delete obj.id;
+        delete obj.val;
+        stateTypes[id] = obj.common.type;
+        adapter.log.debug('data received type: ' + obj.common.type);
+        
+        adapter.setObjectNotExists(id, obj, function(err, obj) {
+            if (!err && obj){
+                adapter.log.info('Object ' + obj.id + ' created');
+                if(val){
+                    setState('iogo.0.' + id, val);
+                }
+            } 
+        });
+
+        dbObjectQueuesRef.child(data.ref.key).remove();
+    });
+}
+
+function setState(id, val){
+    if(id.indexOf('iogo.') === 1){
+        if(stateTypes[id] == "number"){
+            adapter.setState(id, parseFloat(val));
+        }else if(stateTypes[id] == "boolean"){
+            adapter.setState(id, (val == "true"));
+        }else{
+            adapter.setState(id, val);
+        }
+    }else{
+        if(stateTypes[id] == "number"){
             adapter.setForeignState(id, parseFloat(val));
-        }else if(stateTypes[id] = "boolean"){
+        }else if(stateTypes[id] == "boolean"){
             adapter.setForeignState(id, (val == "true"));
         }else{
             adapter.setForeignState(id, val);
         }
-        dbStatesRef.child(data.ref.key).remove();
-    });
+    }
 }
 
 function removeListener(){
-    dbStatesRef = firebase.database().ref('states/' + uid);
-    dbStatesRef.off();
+    dbStateQueuesRef.off();
+    dbObjectQueuesRef.off();
 }
 
 function send(obj){
