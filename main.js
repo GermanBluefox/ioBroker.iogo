@@ -35,7 +35,7 @@ var dbStateQueuesRef;
 var dbObjectQueuesRef;
 var loggedIn = false;
 var enum_states = {};
-var stateValues = {}; // detect changes
+//var stateValues = {}; // detect changes
 var stateTypes = {};
 
 // is called when adapter shuts down - callback has to be called under any circumstances!
@@ -104,8 +104,8 @@ adapter.on('stateChange', function (id, state) {
             adapter.log.debug('send state: ' + id);
             var tmp = state;
             tmp.id = id;
-            if(stateValues[id] && stateValues[id] != state.val){
-                stateValues[id] = state.val;
+            //if(stateValues[id] && stateValues[id] != state.val){
+            //    stateValues[id] = state.val;
                 if(state.val !== null){
                     tmp.val = state.val.toString();
                 }
@@ -116,7 +116,7 @@ adapter.on('stateChange', function (id, state) {
                         adapter.log.debug(id + ' saved successfully');
                     }
                 });
-            }
+            //}
         } else{
             adapter.log.error('forbidden path: ' + id);
         }
@@ -287,7 +287,7 @@ function uploadStates(){
                         tmp.val = states[id].val.toString();
                     }
                     
-                    stateValues[id] = states[id].val;
+                    //stateValues[id] = states[id].val;
                     objectList[node] = tmp;
                 } else{
                     adapter.log.error('forbidden path: ' + id);

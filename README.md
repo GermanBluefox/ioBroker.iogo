@@ -24,7 +24,7 @@ User must be created before (please read the application documentation for furth
 
 It is possible to specify more than one recipient (just separate the Usernames by comma). For example: Recipient: "User1,User4,User5"
 
-Example how to send notification customized message:
+Example how to send notification customized message with javascript:
 ```
 sendTo('iogo', {
     user:                   'Username',
@@ -33,6 +33,9 @@ sendTo('iogo', {
     priority:               'high'
 });
 ```
+
+And one example with blockly:
+![blockly](img/blockly.png)
 
 Callbacks are supported aswell:
 ```
@@ -52,7 +55,7 @@ As this adapter is using firebase-admin, it supports Node.js 6.0 and higher.
 
 ## Changelog
 
-### 0.0.11
+### 0.1.0
 * (nisio) initial release
 
 ## License
