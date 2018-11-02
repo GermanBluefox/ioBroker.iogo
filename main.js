@@ -188,7 +188,7 @@ function uploadEnum(){
         
         for (var id in objects) {
             if(isValidId(id)){
-                if(id != 'enum.rooms' && id != 'enum.functions'){
+                if(id.indexOf('enum.rooms.') === 1 || id.indexOf('enum.functions.')){
                     var node = id.replace(/\./g,'_');
                     var object = {};
                     var tmp = objects[id];
