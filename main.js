@@ -188,7 +188,7 @@ function uploadEnum(){
         
         for (var id in objects) {
             if(isValidId(id)){
-                if(id.indexOf('enum.rooms.') === 1 || id.indexOf('enum.functions.')){
+                if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
                     var node = id.replace(/\./g,'_');
                     var object = {};
                     var tmp = objects[id];
@@ -265,13 +265,15 @@ function uploadStates(){
                     var node = id.replace(/\./g,'_');
                     
                     var tmp = states[id];
-                    tmp.id = id;
-                    if(states[id].val !== null){
-                        tmp.val = states[id].val.toString();
+                    if(tmp != null){
+                        tmp.id = id;
+                        if(states[id].val !== null){
+                            tmp.val = states[id].val.toString();
+                        }
+                        
+                        //stateValues[id] = states[id].val;
+                        objectList[node] = tmp;
                     }
-                    
-                    //stateValues[id] = states[id].val;
-                    objectList[node] = tmp;
                 } else{
                     adapter.log.error('forbidden path: ' + id);
                 }
