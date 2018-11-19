@@ -51,10 +51,26 @@ sendTo('iogo', {title: 'News', text: 'New message'}, function (res) {
 - *title*: The notification's title
 - *priority*: NORMAL or HIGH
 
-## Supported Environments
-As this adapter is using firebase-admin, it supports Node.js 6.0 and higher.
+## PRO Features
+
+Pro features are immediatly availabe after buying monthly/yearly subscription in ioGo App.
+
+### Images ###
+Just send the path to your image instead of text ```sendTo('iogo.0', 'absolute/path/file.png')```
+```
+sendTo('iogo', {
+    user:                   'Username',
+    text:                   'New message',
+    title:                  'VIP News',
+    url:                    'absolute/path/file.png',
+    priority:               'normal'
+});
+```
 
 ## Changelog
+
+### 0.2.0
+* (nisio) added pro features
 
 ### 0.1.0
 * (nisio) initial release
