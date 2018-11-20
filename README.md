@@ -69,10 +69,10 @@ sendTo('iogo', {
 
 ## Changelog
 
-### 0.2.0
+### 0.2.x
 * (nisio) added pro features
 
-### 0.1.0
+### 0.1.x
 * (nisio) initial release
 
 ## License

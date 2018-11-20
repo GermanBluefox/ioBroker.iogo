@@ -14,7 +14,7 @@
     ]
   ],
   "_from": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-  "_id": "iobroker.iogo@0.2.0",
+  "_id": "iobroker.iogo@0.2.1",
   "_inCache": true,
   "_location": "/iobroker.iogo",
   "_phantomChildren": {},
@@ -50,7 +50,8 @@
     }
   ],
   "dependencies": {
-    "firebase": "^5.4.2"
+    "firebase": "^5.4.2",
+    "xhr2": "^0.1.4"
   },
   "description": "iogo adapter for advanced communication with android app",
   "devDependencies": {
@@ -78,5 +79,5 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha --exit"
   },
-  "version": "0.2.0"
+  "version": "0.2.1"
 }
