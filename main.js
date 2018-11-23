@@ -519,7 +519,7 @@ function _sendMessageHelper(token, username, text, priority, title, url) {
 
     // Write the new post's data simultaneously in the posts list and the user's post list.
     var updates = {};
-    updates['/messageQueues/' + uid + '/' + newPostKey] = mesasageData;
+    updates['/messageQueues/' + uid + '/' + username + '/' + newPostKey] = mesasageData;
     updates['/messagePushQueues/' + uid + '/' + newPostKey] = mesasageData;
 
     database.ref().update(updates, function(error) {

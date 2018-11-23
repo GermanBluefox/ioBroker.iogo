@@ -14,7 +14,7 @@
     ]
   ],
   "_from": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-  "_id": "iobroker.iogo@0.2.1",
+  "_id": "iobroker.iogo@0.2.2",
   "_inCache": true,
   "_location": "/iobroker.iogo",
   "_phantomChildren": {},
@@ -79,5 +79,5 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha --exit"
   },
-  "version": "0.2.1"
+  "version": "0.2.2"
 }
