@@ -565,7 +565,7 @@ function sendImage(fileName, messageKey){
         }, function() {
             // Handle successful uploads on complete
             uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
-                resolve(path.basename(fileName));
+                resolve(messageKey + '/' + path.basename(fileName));
             });
         });
     });
