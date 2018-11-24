@@ -438,16 +438,19 @@ function sendMessage(text, username, priority, title, url) {
         text = text.toString();
     }
 
+    // Get a key for a new Post.
+    var messageKey = database.ref('messages/' + uid).push().key;
+
     if (iogoPro && text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
         sendImage(text).then(function(url){
-            sendMessageToUser(null, username, priority, title, url)
+            sendMessageToUser(null, username, priority, title, messageKey, url)
         });
     }else if(iogoPro && url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
         sendImage(url).then(function(fileName){
-            sendMessageToUser(text, username, priority, title, fileName)
+            sendMessageToUser(text, username, priority, title, messageKey, fileName)
         });
     }else{
-        sendMessageToUser(text, username, priority, title)
+        sendMessageToUser(text, username, priority, title, messageKey)
     }
     
     
@@ -473,18 +476,18 @@ function getFilteredUsers(username){
     }
 }
 
-function sendMessageToUser(text, username, priority, title, url){
+function sendMessageToUser(text, username, priority, title, messageKey, url){
     var count = 0;
     var u;
     var recipients = getFilteredUsers(username);
 
     for (u in recipients) {
-        count += _sendMessageHelper(users[u], u, text, priority, title, url);
+        count += _sendMessageHelper(users[u], u, text, priority, title, messageKey, url);
     }
     return count;
 }
 
-function _sendMessageHelper(token, username, text, priority, title, url) {
+function _sendMessageHelper(token, username, text, priority, title, messageKey, url) {
     if (!token) {
         adapter.log.warn('Invalid token for user: '+username);
         return;
@@ -514,13 +517,10 @@ function _sendMessageHelper(token, username, text, priority, title, url) {
 
     adapter.log.debug('MessageData:' + JSON.stringify(mesasageData));
 
-    // Get a key for a new Post.
-    var newPostKey = database.ref('messages/' + uid).push().key;
-
     // Write the new post's data simultaneously in the posts list and the user's post list.
     var updates = {};
-    updates['/messageQueues/' + uid + '/' + username + '/' + newPostKey] = mesasageData;
-    updates['/messagePushQueues/' + uid + '/' + newPostKey] = mesasageData;
+    updates['/messageQueues/' + uid + '/' + username + '/' + messageKey] = mesasageData;
+    updates['/messagePushQueues/' + uid + '/' + messageKey] = mesasageData;
 
     database.ref().update(updates, function(error) {
         if (error) {
@@ -529,24 +529,15 @@ function _sendMessageHelper(token, username, text, priority, title, url) {
             adapter.log.info('saved successfully');
         }
     });
-/*
-    database.ref('messages/' + uid).push(mesasageData, function(error) {
-        if (error) {
-            adapter.log.error(error);
-        } else {
-            adapter.log.info('saved successfully');
-        }
-    });
-    */
 
     return count;
 }
 
-function sendImage(fileName){
+function sendImage(fileName, messageKey){
     return new Promise((resolve, reject) => {
         var storage = firebase.storage();
         var storageRef = storage.ref();
-        var imageRef = storageRef.child('messages').child(uid).child(path.basename(fileName));
+        var imageRef = storageRef.child('messages').child(uid).child(messageKey).child(path.basename(fileName));
 
         var file = fs.readFileSync(fileName);
         var uploadTask = imageRef.put(file);
