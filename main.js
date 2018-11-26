@@ -359,12 +359,12 @@ function registerListener(){
         delete obj.id;
         delete obj.val;
         stateTypes[id] = obj.common.type;
-        adapter.log.debug('data received type: ' + obj.common.type);
         
-        adapter.setObjectNotExists(id, obj, function(err, obj) {
+        adapter.setObject(id, obj, function(err, obj) {
             if (!err && obj){
-                adapter.log.info('Object ' + obj.id + ' created');
+                adapter.log.info('Object ' + id + ' created');
                 if(val){
+                    adapter.log.info('State ' + id + ' set to:' + val);
                     setState('iogo.0.' + id, val);
                 }
             } 
@@ -442,11 +442,11 @@ function sendMessage(text, username, priority, title, url) {
     var messageKey = database.ref('messages/' + uid).push().key;
 
     if (iogoPro && text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
-        sendImage(text).then(function(url){
-            sendMessageToUser(null, username, priority, title, messageKey, url)
+        sendImage(text, messageKey).then(function(fileName){
+            sendMessageToUser(null, username, priority, title, messageKey, fileName)
         });
     }else if(iogoPro && url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
-        sendImage(url).then(function(fileName){
+        sendImage(url, messageKey).then(function(fileName){
             sendMessageToUser(text, username, priority, title, messageKey, fileName)
         });
     }else{
@@ -537,7 +537,8 @@ function sendImage(fileName, messageKey){
     return new Promise((resolve, reject) => {
         var storage = firebase.storage();
         var storageRef = storage.ref();
-        var imageRef = storageRef.child('messages').child(uid).child(messageKey).child(path.basename(fileName));
+        var uniqueName = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(fileName);
+        var imageRef = storageRef.child('messages').child(uid).child(uniqueName);
 
         var file = fs.readFileSync(fileName);
         var uploadTask = imageRef.put(file);
@@ -565,7 +566,7 @@ function sendImage(fileName, messageKey){
         }, function() {
             // Handle successful uploads on complete
             uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
-                resolve(messageKey + '/' + path.basename(fileName));
+                resolve(uniqueName);
             });
         });
     });
