@@ -442,12 +442,12 @@ function sendMessage(text, username, priority, title, url) {
     var messageKey = database.ref('messages/' + uid).push().key;
 
     if (iogoPro && text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
-        sendImage(text, messageKey).then(function(fileName){
-            sendMessageToUser(null, username, priority, title, messageKey, fileName)
+        sendImage(text, messageKey).then(function(result){
+            sendMessageToUser(null, username, priority, title, messageKey, result, url)
         });
     }else if(iogoPro && url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
-        sendImage(url, messageKey).then(function(fileName){
-            sendMessageToUser(text, username, priority, title, messageKey, fileName)
+        sendImage(url, messageKey).then(function(result){
+            sendMessageToUser(text, username, priority, title, messageKey, result, url)
         });
     }else{
         sendMessageToUser(text, username, priority, title, messageKey)
@@ -476,18 +476,18 @@ function getFilteredUsers(username){
     }
 }
 
-function sendMessageToUser(text, username, priority, title, messageKey, url){
+function sendMessageToUser(text, username, priority, title, messageKey, url, filename){
     var count = 0;
     var u;
     var recipients = getFilteredUsers(username);
 
     for (u in recipients) {
-        count += _sendMessageHelper(users[u], u, text, priority, title, messageKey, url);
+        count += _sendMessageHelper(users[u], u, text, priority, title, messageKey, url, filename);
     }
     return count;
 }
 
-function _sendMessageHelper(token, username, text, priority, title, messageKey, url) {
+function _sendMessageHelper(token, username, text, priority, title, messageKey, url, filename) {
     if (!token) {
         adapter.log.warn('Invalid token for user: '+username);
         return;
@@ -522,25 +522,50 @@ function _sendMessageHelper(token, username, text, priority, title, messageKey, 
     updates['/messageQueues/' + uid + '/' + username + '/' + messageKey] = mesasageData;
     updates['/messagePushQueues/' + uid + '/' + messageKey] = mesasageData;
 
-    database.ref().update(updates, function(error) {
-        if (error) {
-            adapter.log.error(error);
-        } else {
-            adapter.log.info('saved successfully');
-        }
-    });
-
+    if(filename != null){
+        sendImage(filename, messageKey, username + '/' + url).then(function(result){
+            database.ref().update(updates, function(error) {
+                if (error) {
+                    adapter.log.error(error);
+                } else {
+                    adapter.log.info('message saved successfully');
+                }
+            });
+        });
+    }else{
+        database.ref().update(updates, function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.info('message saved successfully');
+            }
+        });
+    }
+    
     return count;
 }
 
-function sendImage(fileName, messageKey){
+function sendImage(fileName, messageKey, uniqueName){
     return new Promise((resolve, reject) => {
         var storage = firebase.storage();
         var storageRef = storage.ref();
-        var uniqueName = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(fileName);
-        var imageRef = storageRef.child('messages').child(uid).child(uniqueName);
+        var retUrl;
+        
+        if(uniqueName == null){
+            retUrl = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(fileName);
+        }else{
+            retUrl = uniqueName;
+        }
+        
+        var imageRef = storageRef.child('messages').child(uid).child(retUrl);
 
         var file = fs.readFileSync(fileName);
+        
+        imageRef.put(file).then(function(snapshot) {
+            console.log('Uploaded a blob or file!');
+        });
+
+
         var uploadTask = imageRef.put(file);
 
         // Register three observers:
@@ -565,9 +590,8 @@ function sendImage(fileName, messageKey){
             reject();
         }, function() {
             // Handle successful uploads on complete
-            uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
-                resolve(uniqueName);
-            });
+            resolve(retUrl);
+            
         });
     });
 }

@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.2.5",
+        "version": "0.2.6",
         "news": {
-            "0.2.5": {
+            "0.2.6": {
                 "en": "added pro features",
                 "de": "pro features hinzugefügt",
                 "ru": "добавлены функции pro",
