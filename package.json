@@ -1,41 +1,4 @@
 {
-  "_args": [
-    [
-      {
-        "raw": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-        "scope": null,
-        "escapedName": null,
-        "name": null,
-        "rawSpec": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-        "spec": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-        "type": "remote"
-      },
-      "/home"
-    ]
-  ],
-  "_from": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-  "_id": "iobroker.iogo@0.2.6",
-  "_inCache": true,
-  "_location": "/iobroker.iogo",
-  "_phantomChildren": {},
-  "_requested": {
-    "raw": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-    "scope": null,
-    "escapedName": null,
-    "name": null,
-    "rawSpec": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-    "spec": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-    "type": "remote"
-  },
-  "_requiredBy": [
-    "#USER",
-    "/"
-  ],
-  "_resolved": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-  "_shasum": "c7c0f8d593858599d4ff67e6a55c8c03ebec8318",
-  "_shrinkwrap": null,
-  "_spec": "https://github.com/nisiode/ioBroker.iogo/tarball/master",
-  "_where": "/home",
   "author": {
     "name": "Nis Nagel",
     "email": "support@nisnagel.de"
@@ -79,5 +42,5 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha --exit"
   },
-  "version": "0.2.6"
+  "version": "0.2.7"
 }

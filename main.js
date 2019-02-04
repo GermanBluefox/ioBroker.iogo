@@ -417,7 +417,7 @@ function send(obj){
                 if (obj.message) {
                     var count;
                     if (typeof obj.message === 'object') {
-                        count = sendMessage(obj.message.text, obj.message.user, obj.message.priority, obj.message.title, obj.message.url);
+                        count = sendMessage(obj.message.text, obj.message.user, obj.message.title, obj.message.url);
                     } else {
                         count = sendMessage(obj.message);
                     }
@@ -427,7 +427,7 @@ function send(obj){
     }
 }
 
-function sendMessage(text, username, priority, title, url) {
+function sendMessage(text, username, title, url) {
     if (!text && text !== 0) {
         adapter.log.warn('Invalid text: null');
         return;
@@ -443,14 +443,14 @@ function sendMessage(text, username, priority, title, url) {
 
     if (iogoPro && text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
         sendImage(text, messageKey).then(function(result){
-            sendMessageToUser(null, username, priority, title, messageKey, result, url)
+            sendMessageToUser(null, username, title, messageKey, result, url)
         });
     }else if(iogoPro && url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
         sendImage(url, messageKey).then(function(result){
-            sendMessageToUser(text, username, priority, title, messageKey, result, url)
+            sendMessageToUser(text, username, title, messageKey, result, url)
         });
     }else{
-        sendMessageToUser(text, username, priority, title, messageKey)
+        sendMessageToUser(text, username, title, messageKey)
     }
     
     
@@ -476,39 +476,35 @@ function getFilteredUsers(username){
     }
 }
 
-function sendMessageToUser(text, username, priority, title, messageKey, url, filename){
+function sendMessageToUser(text, username, title, messageKey, url, filename){
     var count = 0;
     var u;
     var recipients = getFilteredUsers(username);
 
     for (u in recipients) {
-        count += _sendMessageHelper(users[u], u, text, priority, title, messageKey, url, filename);
+        count += _sendMessageHelper(users[u], u, text, title, messageKey, url, filename);
     }
     return count;
 }
 
-function _sendMessageHelper(token, username, text, priority, title, messageKey, url, filename) {
+function _sendMessageHelper(token, username, text, title, messageKey, url, filename) {
     if (!token) {
-        adapter.log.warn('Invalid token for user: '+username);
+        adapter.log.warn('Invalid token for user: ' + username);
         return;
     }
     var count = 0;
     
-    if(priority === undefined || priority == null){
-        priority = 'normal';
-    }
     if(title === undefined || title == null){
         title = 'news';
     }
 
-    adapter.log.debug('Send message to "' + username + '": ' + text + ' (priority:' + priority + ' / title:' + title + ') url:' + url);
+    adapter.log.debug('Send message to "' + username + '": ' + text + ' (title:' + title + ' url:' + url + ')');
 
     var timestamp = new Date().getTime();
 
     // A message entry.
     var mesasageData = {
         to: token,
-        priority: priority,
         title: title, 
         text: text,
         ts: timestamp,

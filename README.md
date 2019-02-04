@@ -29,8 +29,7 @@ Example how to send notification customized message with javascript:
 sendTo('iogo', {
     user:                   'Username',
     text:                   'New message',
-    title:                  'VIP News',
-    priority:               'high'
+    title:                  'VIP News'
 });
 ```
 
@@ -49,7 +48,6 @@ sendTo('iogo', {title: 'News', text: 'New message'}, function (res) {
 - *user*: Single user or list of users
 - *text*: The notification's body text
 - *title*: The notification's title
-- *priority*: NORMAL or HIGH
 
 ## PRO Features
 
@@ -62,8 +60,7 @@ sendTo('iogo', {
     user:                   'Username',
     text:                   'New message',
     title:                  'VIP News',
-    url:                    'absolute/path/file.png',
-    priority:               'normal'
+    url:                    'absolute/path/file.png'
 });
 ```
 
