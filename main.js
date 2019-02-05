@@ -294,7 +294,7 @@ function uploadStates(){
                             tmp.val = states[id].val.toString();
                         }
                         
-                        stateValues[id] = states[id].val;
+                        stateValues[id] = tmp.val;
                         objectList[node] = tmp;
                     }
                 }
@@ -310,11 +310,9 @@ function uploadStates(){
     });
 }
 
-function sendState(id, state, force){
+function sendState(id, state){
     if(isValidId(id)){
         var node = id.replace(/\./g,'_');
-        
-        adapter.log.debug('send state: ' + id);
         var tmp = {};
         tmp.id = id;
         tmp.ack = state.ack;
@@ -325,11 +323,12 @@ function sendState(id, state, force){
         }
         tmp.ts = state.ts;
         tmp.lc = state.lc;
-        if((stateValues[id] && stateValues[id] != state.val) || force){
-            stateValues[id] = state.val;
-            if(state.val !== null){
-                tmp.val = state.val.toString();
-            }
+        if(state.val !== null){
+            tmp.val = state.val.toString();
+        }
+        adapter.log.debug('send state: ' + id + ' state.val:'+state.val + ' stateValues[id]:'+stateValues[id] + ' state.from:'+state.from.indexOf('system.adapter.iogo'));
+        if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
+            stateValues[id] = tmp.val;
             database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
                 if (error) {
                     adapter.log.error(error);
