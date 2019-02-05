@@ -41,7 +41,7 @@ var dbStateQueuesRef;
 var dbObjectQueuesRef;
 var loggedIn = false;
 var enum_states = {};
-//var stateValues = {}; // detect changes
+var stateValues = {}; // detect changes
 var stateTypes = {};
 
 // is called when adapter shuts down - callback has to be called under any circumstances!
@@ -294,7 +294,7 @@ function uploadStates(){
                             tmp.val = states[id].val.toString();
                         }
                         
-                        //stateValues[id] = states[id].val;
+                        stateValues[id] = states[id].val;
                         objectList[node] = tmp;
                     }
                 }
@@ -310,7 +310,7 @@ function uploadStates(){
     });
 }
 
-function sendState(id, state){
+function sendState(id, state, force){
     if(isValidId(id)){
         var node = id.replace(/\./g,'_');
         
@@ -325,8 +325,8 @@ function sendState(id, state){
         }
         tmp.ts = state.ts;
         tmp.lc = state.lc;
-        //if(stateValues[id] && stateValues[id] != state.val){
-        //    stateValues[id] = state.val;
+        if((stateValues[id] && stateValues[id] != state.val) || force){
+            stateValues[id] = state.val;
             if(state.val !== null){
                 tmp.val = state.val.toString();
             }
@@ -337,7 +337,7 @@ function sendState(id, state){
                     adapter.log.debug(id + ' saved successfully');
                 }
             });
-        //}
+        }
     }
 }
 
