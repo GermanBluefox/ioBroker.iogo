@@ -14,7 +14,8 @@
   ],
   "dependencies": {
     "firebase": "^5.4.2",
-    "xhr2": "^0.1.4"
+    "xhr2": "^0.1.4",
+    "@iobroker/adapter-core": "^1.0.2"
   },
   "description": "iogo adapter for advanced communication with android app",
   "devDependencies": {
@@ -42,5 +43,5 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha --exit"
   },
-  "version": "0.2.9"
+  "version": "0.3.0"
 }

@@ -65,6 +65,8 @@ sendTo('iogo', {
 ```
 
 ## Changelog
+### 0.3.0
+* (nisio) added support of compact mode
 
 ### 0.2.x
 * (nisio) added pro features

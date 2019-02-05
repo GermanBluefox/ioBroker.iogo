@@ -1,8 +1,19 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.2.9",
+        "version": "0.3.0",
         "news": {
+            "0.3.0": {
+                "en": "change to compact mode",
+                "de": "Unterstützung für Kompaktmodus hinzugefügt",
+                "ru": "перейти в компактный режим",
+                "pt": "mudar para o modo compacto",
+                "nl": "verander naar compacte modus",
+                "fr": "passer en mode compact",
+                "it": "passare alla modalità compatta",
+                "es": "cambiar al modo compacto",
+                "pl": "przejdź do trybu kompaktowego"
+            },
             "0.2.x": {
                 "en": "added pro features",
                 "de": "pro features hinzugefügt",
@@ -56,6 +67,7 @@
         "mode": "daemon",
         "icon": "iogo.png",
         "materialize": true,
+        "compact": true,
         "enabled": true,
         "extIcon": "https://raw.githubusercontent.com/nisiode/ioBroker.iogo/master/admin/iogo.png",
         "keywords": ["iogo", "android", "app"],

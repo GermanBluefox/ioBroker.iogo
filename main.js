@@ -1,20 +1,18 @@
-/**
- *
- * iogo adapter
- *
- */
-
-/* jshint -W097 */// jshint strict:false
-/*jslint node: true */
+/* jshint -W097 */
+/* jshint strict:false */
+/* global require */
+/* global RRule */
+/* global __dirname */
+/* jslint node: true */
 'use strict';
 
 // you have to require the utils module and call adapter function
-const utils =    require(__dirname + '/lib/utils'); // Get common adapter utils
+var utils = require('@iobroker/adapter-core'); // Get common adapter utils
 
 // you have to call the adapter function and pass a options object
 // name has to be set and has to be equal to adapters folder name and main file name excluding extension
 // adapter will be restarted automatically every time as the configuration changed, e.g system.adapter.iogo.0
-const adapter = new utils.Adapter('iogo');
+let adapter;
 
 var lastMessageTime = 0;
 var lastMessageText = '';
@@ -44,78 +42,88 @@ var enum_states = {};
 var stateValues = {}; // detect changes
 var stateTypes = {};
 
-// is called when adapter shuts down - callback has to be called under any circumstances!
-adapter.on('unload', function (callback) {
-    try {
-        adapter.log.info('cleaned everything up...');
-        removeListener();
-        firebase.auth().signOut().then(function() {
-            adapter.log.info('signed out');
-          }, function(error) {
-            adapter.log.error('sign out error', error);
-          });
-        callback();
-    } catch (e) {
-        callback();
-    }
-    if (adapter && adapter.setState) adapter.setState('info.connection', false, true);
-});
+function startAdapter(options) {
+    options = options || {};
+    Object.assign(options,{
+        name:  "iogo",
 
-// is called if a subscribed object changes
-adapter.on('objectChange', function (id, obj) {
-    if(!loggedIn){
-        return;
-    }
-    
-    if(enum_states[id] === true && obj.type === "state"){
-        if(isValidId(id)){
-            var node = id.replace(/\./g,'_');
+        // is called when adapter shuts down - callback has to be called under any circumstances!
+        unload: function (callback) {
+            try {
+                adapter.log.info('cleaned everything up...');
+                removeListener();
+                firebase.auth().signOut().then(function() {
+                    adapter.log.info('signed out');
+                  }, function(error) {
+                    adapter.log.error('sign out error', error);
+                  });
+                callback();
+            } catch (e) {
+                callback();
+            }
+            if (adapter && adapter.setState) adapter.setState('info.connection', false, true);
+        },
+
+        // is called if a subscribed object changes
+        objectChange: function (id, obj) {
+            if(!loggedIn){
+                return;
+            }
             
-            adapter.log.debug('send object: ' + id);
-            database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.debug(id + ' saved successfully');
+            if(enum_states[id] === true && obj.type === "state"){
+                if(isValidId(id)){
+                    var node = id.replace(/\./g,'_');
+                    
+                    adapter.log.debug('send object: ' + id);
+                    database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
+                        if (error) {
+                            adapter.log.error(error);
+                        } else {
+                            adapter.log.debug(id + ' saved successfully');
+                        }
+                    });
                 }
-            });
+            }
+        },
+
+        stateChange: function (id, state) {
+            // Warning, state can be null if it was deleted
+
+            if(id.endsWith('.token')){
+                var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
+                if(state){
+                    users[user_name] = state.val;
+                }else{
+                    delete users[user_name];
+                }
+                adapter.log.info('user ' + user_name + ' changed');
+            }
+
+            if(!loggedIn){
+                return;
+            }
+
+            if(enum_states[id] === true){
+                sendState(id, state);
+            }
+        },
+
+        // Some message was sent to adapter instance over message box. Used by email, pushover, text2speech, ...
+        message: function (obj) {
+            send(obj);
+        },
+
+        // is called when databases are connected and adapter received configuration.
+        // start here!
+        ready: function () {
+            main();
         }
-    }
-});
+    });
 
-// is called if a subscribed state changes
-adapter.on('stateChange', function (id, state) {
-    // Warning, state can be null if it was deleted
-
-    if(id.endsWith('.token')){
-        var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
-        if(state){
-            users[user_name] = state.val;
-        }else{
-            delete users[user_name];
-        }
-        adapter.log.info('user ' + user_name + ' changed');
-    }
-
-    if(!loggedIn){
-        return;
-    }
-
-    if(enum_states[id] === true){
-        sendState(id, state);
-    }
-});
-
-// Some message was sent to adapter instance over message box. Used by email, pushover, text2speech, ...
-adapter.on('message', function (obj) {
-    send(obj);
-});
-
-// is called when databases are connected and adapter received configuration.
-// start here!
-adapter.on('ready', function () {
-    main();
-});
+    adapter = new utils.Adapter(options);
+    
+    return adapter;
+};
 
 function main() {
     if(adapter.config.email == null || adapter.config.password == null){
@@ -287,9 +295,17 @@ function uploadStates(){
                 if(isValidId(id)){
                     var node = id.replace(/\./g,'_');
                     
-                    var tmp = states[id];
-                    if(tmp != null){
+                    if(states[id] != null){
+                        var tmp = {};
                         tmp.id = id;
+                        tmp.ack = states[id].ack;
+                        if(iogoPro){
+                            tmp.val = states[id].val;
+                        }else if(typeof states[id].val === 'string'){
+                            tmp.val = state.val.substr(1,100);
+                        }
+                        tmp.ts = states[id].ts;
+                        tmp.lc = states[id].lc;
                         if(states[id].val !== null){
                             tmp.val = states[id].val.toString();
                         }
@@ -590,3 +606,11 @@ function sendImage(fileName, messageKey, uniqueName){
         });
     });
 }
+
+// If started as allInOne/compact mode => return function to create instance
+if (module && module.parent) {
+    module.exports = startAdapter;
+} else {
+    // or start the instance directly
+    startAdapter();
+} 
