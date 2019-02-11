@@ -33,6 +33,8 @@ global.XMLHttpRequest = require("xhr2");
 var fs = require('fs');
 var path = require('path');
 
+const lang = 'en';
+
 var uid;
 var database;
 var dbStateQueuesRef;
@@ -69,13 +71,58 @@ function startAdapter(options) {
             if(!loggedIn){
                 return;
             }
+
+            if(!isValidId(id)){
+                return;
+            }
+
+            var node = id.replace(/\./g,'_');
+
+            if(obj === null){
+                if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
+                    database.ref('enums/' + uid + '/' + node).remove();
+                    adapter.log.info('removed enum ' + id + ' from remote database');
+                }
+                return;
+            }
             
-            if(enum_states[id] === true && obj.type === "state"){
-                if(isValidId(id)){
-                    var node = id.replace(/\./g,'_');
-                    
-                    adapter.log.debug('send object: ' + id);
-                    database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
+            if(obj.type === "state" && enum_states[id] === true){
+                adapter.log.debug('send object: ' + id);
+                database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
+                    if (error) {
+                        adapter.log.error(error);
+                    } else {
+                        adapter.log.debug(id + ' saved successfully');
+                    }
+                });
+            }
+
+            if(obj.type === "enum"){
+                if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
+                    var object = {};
+                    var objectList = [];
+                    var tmp = obj;
+                    let name = tmp.common.name;
+                    if (typeof name === 'object') {
+                        name = name[lang] || name.en;
+                    }
+                    object.id = id;
+                    object.name = name;
+                    object.members = tmp.common.members;
+                    if(iogoPro){
+                        if(tmp.common.icon){
+                            object.icon = tmp.common.icon;
+                        }
+                        if(tmp.common.color){
+                            object.color = tmp.common.color;
+                        }
+                    }
+                    objectList[node] = object;
+                    for (var key in object.members) {
+                        enum_states[object.members[key]] = true;
+                    }
+
+                    database.ref('enums/' + uid + '/' + node).set(object, function(error) {
                         if (error) {
                             adapter.log.error(error);
                         } else {
@@ -214,7 +261,7 @@ function clearDatabase(){
 
 function uploadEnum(){
     adapter.getForeignObjects('*', 'enum', function (err, objects) {
-        const lang = 'en';
+        
         var objectList = [];
         
         for (var id in objects) {
@@ -246,13 +293,19 @@ function uploadEnum(){
             }
         }
         
-        database.ref('enums/' + uid).set(objectList, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
-            }
-        });
+        uploadEnumList(objectList);
+
+        adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
+    });
+}
+
+function uploadEnumList(list){
+    database.ref('enums/' + uid).set(list, function(error) {
+        if (error) {
+            adapter.log.error(error);
+        } else {
+            adapter.log.info('database initialized with ' + Object.keys(list).length + ' enums');
+        }
     });
 }
 
@@ -302,7 +355,7 @@ function uploadStates(){
                         if(iogoPro){
                             tmp.val = states[id].val;
                         }else if(typeof states[id].val === 'string'){
-                            tmp.val = state.val.substr(1,100);
+                            tmp.val = states[id].val.substr(1,100);
                         }
                         tmp.ts = states[id].ts;
                         tmp.lc = states[id].lc;

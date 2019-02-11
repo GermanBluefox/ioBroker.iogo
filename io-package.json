@@ -1,10 +1,10 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "news": {
-            "0.3.0": {
-                "en": "change to compact mode",
+            "0.3.x": {
+                "en": "added support of compact mode",
                 "de": "Unterstützung für Kompaktmodus hinzugefügt",
                 "ru": "перейти в компактный режим",
                 "pt": "mudar para o modo compacto",
