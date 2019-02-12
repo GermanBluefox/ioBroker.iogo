@@ -51,113 +51,21 @@ function startAdapter(options) {
 
         // is called when adapter shuts down - callback has to be called under any circumstances!
         unload: function (callback) {
-            try {
-                adapter.log.info('cleaned everything up...');
-                removeListener();
-                firebase.auth().signOut().then(function() {
-                    adapter.log.info('signed out');
-                  }, function(error) {
-                    adapter.log.error('sign out error', error);
-                  });
-                callback();
-            } catch (e) {
-                callback();
-            }
-            if (adapter && adapter.setState) adapter.setState('info.connection', false, true);
+            _unload(callback);
         },
 
         // is called if a subscribed object changes
         objectChange: function (id, obj) {
-            if(!loggedIn){
-                return;
-            }
-
-            if(!isValidId(id)){
-                return;
-            }
-
-            var node = id.replace(/\./g,'_');
-
-            if(obj === null){
-                if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-                    database.ref('enums/' + uid + '/' + node).remove();
-                    adapter.log.info('removed enum ' + id + ' from remote database');
-                }
-                return;
-            }
-            
-            if(obj.type === "state" && enum_states[id] === true){
-                adapter.log.debug('send object: ' + id);
-                database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
-                    if (error) {
-                        adapter.log.error(error);
-                    } else {
-                        adapter.log.debug(id + ' saved successfully');
-                    }
-                });
-            }
-
-            if(obj.type === "enum"){
-                if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-                    var object = {};
-                    var objectList = [];
-                    var tmp = obj;
-                    let name = tmp.common.name;
-                    if (typeof name === 'object') {
-                        name = name[lang] || name.en;
-                    }
-                    object.id = id;
-                    object.name = name;
-                    object.members = tmp.common.members;
-                    if(iogoPro){
-                        if(tmp.common.icon){
-                            object.icon = tmp.common.icon;
-                        }
-                        if(tmp.common.color){
-                            object.color = tmp.common.color;
-                        }
-                    }
-                    objectList[node] = object;
-                    for (var key in object.members) {
-                        enum_states[object.members[key]] = true;
-                    }
-
-                    database.ref('enums/' + uid + '/' + node).set(object, function(error) {
-                        if (error) {
-                            adapter.log.error(error);
-                        } else {
-                            adapter.log.debug(id + ' saved successfully');
-                        }
-                    });
-                }
-            }
+            _objectChange(id, obj)
         },
 
-        stateChange: function (id, state) {
-            // Warning, state can be null if it was deleted
-
-            if(id.endsWith('.token')){
-                var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
-                if(state){
-                    users[user_name] = state.val;
-                }else{
-                    delete users[user_name];
-                }
-                adapter.log.info('user ' + user_name + ' changed');
-            }
-
-            if(!loggedIn){
-                return;
-            }
-
-            if(enum_states[id] === true){
-                sendState(id, state);
-            }
+        stateChange: function(id, state){
+            _stateChange(id, state)
         },
 
         // Some message was sent to adapter instance over message box. Used by email, pushover, text2speech, ...
         message: function (obj) {
-            send(obj);
+            _message(obj);
         },
 
         // is called when databases are connected and adapter received configuration.
@@ -171,6 +79,124 @@ function startAdapter(options) {
     
     return adapter;
 };
+
+function _unload(callback){
+    try {
+        adapter.log.info('cleaned everything up...');
+        removeListener();
+        firebase.auth().signOut().then(function() {
+            adapter.log.info('signed out');
+          }, function(error) {
+            adapter.log.error('sign out error', error);
+          });
+        callback();
+    } catch (e) {
+        callback();
+    }
+    if (adapter && adapter.setState) adapter.setState('info.connection', false, true);
+}
+
+function _objectChange(id, obj) {
+    if(!loggedIn){
+        return;
+    }
+
+    if(!isValidId(id)){
+        return;
+    }
+
+    var node = id.replace(/\./g,'_');
+
+    if(obj === null){
+        if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
+            database.ref('enums/' + uid + '/' + node).remove();
+            adapter.log.info('removed enum ' + id + ' from remote database');
+        }
+        if(enum_states[id] === true){
+            database.ref('objects/' + uid + '/' + node).remove();
+            adapter.log.info('removed object ' + id + ' from remote database');
+        }
+        return;
+    }
+    
+    if(obj.type === "state" && enum_states[id] === true){
+        adapter.log.debug('send object: ' + id);
+        database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.debug(id + ' saved successfully');
+            }
+        });
+    }
+
+    if(obj.type === "enum"){
+        if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
+            var object = {};
+            var objectList = [];
+            var tmp = obj;
+            let name = tmp.common.name;
+            if (typeof name === 'object') {
+                name = name[lang] || name.en;
+            }
+            object.id = id;
+            object.name = name;
+            object.members = tmp.common.members;
+            if(iogoPro){
+                if(tmp.common.icon){
+                    object.icon = tmp.common.icon;
+                }
+                if(tmp.common.color){
+                    object.color = tmp.common.color;
+                }
+            }
+            objectList[node] = object;
+            for (var key in object.members) {
+                enum_states[object.members[key]] = true;
+            }
+
+            database.ref('enums/' + uid + '/' + node).set(object, function(error) {
+                if (error) {
+                    adapter.log.error(error);
+                } else {
+                    adapter.log.debug(id + ' saved successfully');
+                }
+            });
+        }
+    }
+}
+
+function _stateChange(id, state) {
+    // Warning, state can be null if it was deleted
+
+    var node = id.replace(/\./g,'_');
+
+    if(id.endsWith('.token')){
+        var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
+        if(state){
+            users[user_name] = state.val;
+        }else{
+            delete users[user_name];
+        }
+        adapter.log.info('user ' + user_name + ' changed');
+    }
+
+    if(!loggedIn){
+        return;
+    }
+
+    if(state === null){
+        if(enum_states[id] === true){
+            database.ref('states/' + uid + '/' + node).remove();
+            adapter.log.info('removed state ' + id + ' from remote database');
+        }
+        return;
+    }
+
+    if(enum_states[id] === true){
+        sendState(id, state);
+    }
+}
 
 function main() {
     if(adapter.config.email == null || adapter.config.password == null){
@@ -465,7 +491,7 @@ function removeListener(){
     }
 }
 
-function send(obj){
+function _message(obj){
     if (!obj || !obj.command) return;
     if(!loggedIn) return;
 
