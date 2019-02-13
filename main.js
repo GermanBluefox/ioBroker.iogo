@@ -271,8 +271,8 @@ function isValidId(id){
 function initDatabase(){
     clearDatabase();
     uploadEnum();
-    uploadObjects();
-    uploadStates();
+    //uploadObjects();
+    //uploadStates();
     registerListener();
 }
 
@@ -319,19 +319,16 @@ function uploadEnum(){
             }
         }
         
-        uploadEnumList(objectList);
+        database.ref('enums/' + uid).set(objectList, function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
+                uploadObjects();
+                uploadStates();
+            }
+        });
 
-        adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
-    });
-}
-
-function uploadEnumList(list){
-    database.ref('enums/' + uid).set(list, function(error) {
-        if (error) {
-            adapter.log.error(error);
-        } else {
-            adapter.log.info('database initialized with ' + Object.keys(list).length + ' enums');
-        }
     });
 }
 
