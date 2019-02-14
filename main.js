@@ -105,7 +105,7 @@ function _objectChange(id, obj) {
         return;
     }
 
-    var node = id.replace(/\./g,'_');
+    var node = getValidId(id);
 
     if(obj === null){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
@@ -169,7 +169,7 @@ function _objectChange(id, obj) {
 function _stateChange(id, state) {
     // Warning, state can be null if it was deleted
 
-    var node = id.replace(/\./g,'_');
+    var node = getValidId(id);
 
     if(id.endsWith('.token')){
         var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
@@ -259,8 +259,13 @@ function initAppDevices(){
     });
 }
 
+function getValidId(id){
+    adapter.log.info('getValidId for: ' + id + ' => ' + id.replace(/[\.\#]/g,'_'));
+    return id.replace(/[\.\#]/g,'_');
+}
+
 function isValidId(id){
-    if((id.indexOf('#') === -1 && id.indexOf('$') === -1 && id.indexOf('[') === -1 && id.indexOf(']') === -1 && id.indexOf('/') === -1)){
+    if((id.indexOf('$') === -1 && id.indexOf('[') === -1 && id.indexOf(']') === -1 && id.indexOf('/') === -1)){
         return true;
     }else{
         adapter.log.error('forbidden path: ' + id);
@@ -293,7 +298,7 @@ function uploadEnum(){
         for (var id in objects) {
             if(isValidId(id)){
                 if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-                    var node = id.replace(/\./g,'_');
+                    var node = getValidId(id);
                     var object = {};
                     var tmp = objects[id];
                     let name = tmp.common.name;
@@ -339,7 +344,7 @@ function uploadObjects(){
         for (var id in objects) {
             if(enum_states[id] === true && objects[id].type === "state"){
                 if(isValidId(id)){
-                    var node = id.replace(/\./g,'_');
+                    var node = getValidId(id);
                     stateTypes[id] = objects[id].common.type;
 
                     var tmp = objects[id];
@@ -369,7 +374,7 @@ function uploadStates(){
         for (var id in states) {
             if(enum_states[id] === true){
                 if(isValidId(id)){
-                    var node = id.replace(/\./g,'_');
+                    var node = getValidId(id);
                     
                     if(states[id] != null){
                         var tmp = {};
@@ -404,7 +409,7 @@ function uploadStates(){
 
 function sendState(id, state){
     if(isValidId(id)){
-        var node = id.replace(/\./g,'_');
+        var node = getValidId(id);
         var tmp = {};
         tmp.id = id;
         tmp.ack = state.ack;
