@@ -98,59 +98,43 @@ function _unload(callback){
 
 function _objectChange(id, obj) {
     if(!loggedIn){
+        adapter.log.warn('You are not logged in');
         return;
     }
 
-    if(!isValidId(id)){
-        return;
-    }
+    var node = getNode(id);
 
-    var node = getValidId(id);
-
+    // delete object
     if(obj === null){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
             database.ref('enums/' + uid + '/' + node).remove();
-            adapter.log.info('removed enum ' + id + ' from remote database');
+            adapter.log.debug('object (enum) ' + id + ' removed successfully');
         }
         if(enum_states[id] === true){
             database.ref('objects/' + uid + '/' + node).remove();
-            adapter.log.info('removed object ' + id + ' from remote database');
+            adapter.log.debug('object (state) ' + id + ' removed successfully');
         }
         return;
     }
     
+    // update object (state)
     if(obj.type === "state" && enum_states[id] === true){
-        adapter.log.debug('send object: ' + id);
-        database.ref('objects/' + uid + '/' + node).set(JSON.stringify(obj), function(error) {
+        var object = getStateObject(id, obj);
+
+        database.ref('objects/' + uid + '/' + node).set(JSON.stringify(object), function(error) {
             if (error) {
                 adapter.log.error(error);
             } else {
-                adapter.log.debug(id + ' saved successfully');
+                adapter.log.debug('object (state) ' + id + ' saved successfully');
             }
         });
     }
 
+    // update object (enum)
     if(obj.type === "enum"){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-            var object = {};
-            var objectList = [];
-            var tmp = obj;
-            let name = tmp.common.name;
-            if (typeof name === 'object') {
-                name = name[lang] || name.en;
-            }
-            object.id = id;
-            object.name = name;
-            object.members = tmp.common.members;
-            if(iogoPro){
-                if(tmp.common.icon){
-                    object.icon = tmp.common.icon;
-                }
-                if(tmp.common.color){
-                    object.color = tmp.common.color;
-                }
-            }
-            objectList[node] = object;
+            var object = getEnumObject(id, obj);
+
             for (var key in object.members) {
                 enum_states[object.members[key]] = true;
             }
@@ -159,17 +143,50 @@ function _objectChange(id, obj) {
                 if (error) {
                     adapter.log.error(error);
                 } else {
-                    adapter.log.debug(id + ' saved successfully');
+                    adapter.log.debug('object (enum) ' + id + ' saved successfully');
                 }
             });
         }
     }
 }
 
-function _stateChange(id, state) {
-    // Warning, state can be null if it was deleted
+function getEnumObject(id, obj){
+    var tmp = {};
+    let name = obj.common.name;
+    if (typeof name === 'object') {
+        name = name[lang] || name.en;
+    }
+    tmp.id = id;
+    tmp.name = name;
+    tmp.members = obj.common.members;
+    if(iogoPro){
+        if(obj.common.icon){
+            tmp.icon = obj.common.icon;
+        }
+        if(obj.common.color){
+            tmp.color = obj.common.color;
+        }
+    }
 
-    var node = getValidId(id);
+    return tmp;
+}
+
+function getStateObject(id, obj){
+    var tmp = {};
+    let name = obj.common.name;
+    if (typeof name === 'object') {
+        name = name[lang] || name.en;
+    }
+    tmp.name = name;
+    tmp["_id"] = id;
+    tmp.type = obj.type;
+    tmp.common = obj.common;
+
+    return tmp;
+}
+
+function _stateChange(id, state) {
+    var node = getNode(id);
 
     if(id.endsWith('.token')){
         var user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
@@ -188,13 +205,24 @@ function _stateChange(id, state) {
     if(state === null){
         if(enum_states[id] === true){
             database.ref('states/' + uid + '/' + node).remove();
-            adapter.log.info('removed state ' + id + ' from remote database');
+            adapter.log.debug('state ' + id + ' removed succesfully');
         }
         return;
     }
 
     if(enum_states[id] === true){
-        sendState(id, state);
+        var tmp = getState(id, state);
+        
+        if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
+            stateValues[id] = tmp.val;
+            database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
+                if (error) {
+                    adapter.log.error(error);
+                } else {
+                    adapter.log.debug('state ' + id + ' saved successfully');
+                }
+            });
+        }
     }
 }
 
@@ -227,7 +255,7 @@ function main() {
                     adapter.log.error(error);
                 });
                 uid = user.uid;
-                adapter.log.info('logged in as: ' + uid);
+                adapter.log.info('logged in as: ' + uid + ' <= please keep this uid as your secret');
                 loggedIn = true;
                 adapter.setState('info.connection', true, true);
             }
@@ -259,34 +287,24 @@ function initAppDevices(){
     });
 }
 
-function getValidId(id){
-    return id.replace(/[\.\#]/g,'_');
-}
-
-function isValidId(id){
-    if((id.indexOf('$') === -1 && id.indexOf('[') === -1 && id.indexOf(']') === -1 && id.indexOf('/') === -1)){
-        return true;
-    }else{
-        adapter.log.error('forbidden path: ' + id);
-        return false;
-    }
+function getNode(id){
+    //replace unsupported character  . # [ ] $ /
+    return id.replace(/[.#\[\]\/$]/g,'_');
 }
 
 function initDatabase(){
     clearDatabase();
     uploadEnum();
-    //uploadObjects();
-    //uploadStates();
     registerListener();
 }
 
 function clearDatabase(){
     database.ref('states/' + uid).remove();
-    adapter.log.info('removed states from remote database');
+    adapter.log.info('states from remote database removed');
     database.ref('objects/' + uid).remove();
-    adapter.log.info('removed objects from remote database');
+    adapter.log.info('objects from remote database removed');
     database.ref('enums/' + uid).remove();
-    adapter.log.info('removed enums from remote database');
+    adapter.log.info('enums from remote database removed');
 }
 
 function uploadEnum(){
@@ -295,30 +313,13 @@ function uploadEnum(){
         var objectList = [];
         
         for (var id in objects) {
-            if(isValidId(id)){
-                if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-                    var node = getValidId(id);
-                    var object = {};
-                    var tmp = objects[id];
-                    let name = tmp.common.name;
-                    if (typeof name === 'object') {
-                        name = name[lang] || name.en;
-                    }
-                    object.id = id;
-                    object.name = name;
-                    object.members = tmp.common.members;
-                    if(iogoPro){
-                        if(tmp.common.icon){
-                            object.icon = tmp.common.icon;
-                        }
-                        if(tmp.common.color){
-                            object.color = tmp.common.color;
-                        }
-                    }
-                    objectList[node] = object;
-                    for (var key in object.members) {
-                        enum_states[object.members[key]] = true;
-                    }
+            if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
+                var node = getNode(id);
+                var object = getEnumObject(id, objects[id]);
+
+                objectList[node] = object;
+                for (var key in object.members) {
+                    enum_states[object.members[key]] = true;
                 }
             }
         }
@@ -329,7 +330,6 @@ function uploadEnum(){
             } else {
                 adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
                 uploadObjects();
-                uploadStates();
             }
         });
 
@@ -342,17 +342,12 @@ function uploadObjects(){
         
         for (var id in objects) {
             if(enum_states[id] === true && objects[id].type === "state"){
-                if(isValidId(id)){
-                    var node = getValidId(id);
-                    stateTypes[id] = objects[id].common.type;
+                var node = getNode(id);
+                stateTypes[id] = objects[id].common.type;
 
-                    var tmp = objects[id];
-                    delete tmp.native;
+                var tmp = getStateObject(id, objects[id]);
 
-                    objectList[node] = JSON.stringify(tmp);
-                } else{
-                    adapter.log.error('forbidden path: ' + id);
-                }
+                objectList[node] = JSON.stringify(tmp);
             }
         }
 
@@ -361,6 +356,7 @@ function uploadObjects(){
                 adapter.log.error(error);
             } else {
                 adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' objects');
+                uploadStates();
             }
         });
     });
@@ -372,27 +368,13 @@ function uploadStates(){
 
         for (var id in states) {
             if(enum_states[id] === true){
-                if(isValidId(id)){
-                    var node = getValidId(id);
+                var node = getNode(id);
+                
+                if(states[id] != null){
+                    var tmp = getState(id, states[id]);
                     
-                    if(states[id] != null){
-                        var tmp = {};
-                        tmp.id = id;
-                        tmp.ack = states[id].ack;
-                        if(iogoPro){
-                            tmp.val = states[id].val;
-                        }else if(typeof states[id].val === 'string'){
-                            tmp.val = states[id].val.substr(1,100);
-                        }
-                        tmp.ts = states[id].ts;
-                        tmp.lc = states[id].lc;
-                        if(states[id].val !== null){
-                            tmp.val = states[id].val.toString();
-                        }
-                        
-                        stateValues[id] = tmp.val;
-                        objectList[node] = tmp;
-                    }
+                    stateValues[id] = tmp.val;
+                    objectList[node] = tmp;
                 }
             }
         }
@@ -406,40 +388,28 @@ function uploadStates(){
     });
 }
 
-function sendState(id, state){
-    if(isValidId(id)){
-        var node = getValidId(id);
-        var tmp = {};
-        tmp.id = id;
-        tmp.ack = state.ack;
-        if(iogoPro){
-            tmp.val = state.val;
-        }else if(typeof state.val === 'string'){
-            tmp.val = state.val.substr(1,100);
-        }
-        tmp.ts = state.ts;
-        tmp.lc = state.lc;
-        if(state.val !== null){
-            tmp.val = state.val.toString();
-        }
-        adapter.log.debug('send state: ' + id + ' state.val:'+state.val + ' stateValues[id]:'+stateValues[id] + ' state.from:'+state.from.indexOf('system.adapter.iogo'));
-        if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
-            stateValues[id] = tmp.val;
-            database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.debug(id + ' saved successfully');
-                }
-            });
-        }
+function getState(id, state){
+    var tmp = {};
+    tmp.id = id;
+    tmp.ack = state.ack;
+    if(iogoPro){
+        tmp.val = state.val;
+    }else if(typeof state.val === 'string'){
+        tmp.val = state.val.substr(1,100);
     }
+    tmp.ts = state.ts;
+    tmp.lc = state.lc;
+    if(state.val !== null){
+        tmp.val = state.val.toString();
+    }
+
+    return tmp;
 }
 
 function registerListener(){
     dbStateQueuesRef = firebase.database().ref('stateQueues/' + uid);
     dbStateQueuesRef.on('child_added',function(data){
-        adapter.log.debug('data received: ' + JSON.stringify(data));
+        adapter.log.debug('state update received: ' + JSON.stringify(data));
         var id = data.val().id;
         var val = data.val().val;
         setState(id, val);
@@ -447,7 +417,7 @@ function registerListener(){
     });
     dbObjectQueuesRef = firebase.database().ref('objectQueues/' + uid);
     dbObjectQueuesRef.on('child_added',function(data){
-        adapter.log.debug('data received: ' + JSON.stringify(data.val()));
+        adapter.log.debug('object (state) update received: ' + JSON.stringify(data.val()));
         var obj = data.val();
         var id = obj.id;
         var val = obj.val;

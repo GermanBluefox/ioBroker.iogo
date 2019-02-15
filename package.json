@@ -44,5 +44,5 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha --exit"
   },
-  "version": "0.3.3"
+  "version": "0.3.4"
 }
