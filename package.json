@@ -13,7 +13,7 @@
     }
   ],
   "dependencies": {
-    "@iobroker/adapter-core": "^1.0.2",
+    "@iobroker/adapter-core": "^1.0.3",
     "firebase": "^5.4.2",
     "npm": "^6.7.0",
     "xhr2": "^0.1.4"
@@ -22,8 +22,7 @@
   "devDependencies": {
     "chai": "^4.1.2",
     "gulp": "^3.9.1",
-    "mocha": "^4.1.0",
-    "@iobroker/adapter-core": "^1.0.3"
+    "mocha": "^4.1.0"
   },
   "homepage": "https://github.com/nisiode/ioBroker.iogo",
   "keywords": [
