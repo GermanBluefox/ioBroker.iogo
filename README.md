@@ -3,7 +3,7 @@
 # ioBroker.iogo
 =================
 
-[![NPM version](http://img.shields.io/npm/v/iobroker.iogo.svg)](https://www.npmjs.com/package/iobroker.iogo)
+![Number of Installations](http://iobroker.live/badges/iogo-installed.svg) ![Number of Installations](http://iobroker.live/badges/iogo-stable.svg) [![NPM version](http://img.shields.io/npm/v/iobroker.iogo.svg)](https://www.npmjs.com/package/iobroker.iogo)
 [![Downloads](https://img.shields.io/npm/dm/iobroker.iogo.svg)](https://www.npmjs.com/package/iobroker.iogo)
 [![Travis-CI](http://img.shields.io/travis/nisiode/ioBroker.iogo/master.svg)](https://travis-ci.org/nisiode/ioBroker.iogo)
 
