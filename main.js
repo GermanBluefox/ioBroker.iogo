@@ -8,6 +8,7 @@
 
 // you have to require the utils module and call adapter function
 var utils = require('@iobroker/adapter-core'); // Get common adapter utils
+const mapper = require('./lib/mapper.js');
 
 // you have to call the adapter function and pass a options object
 // name has to be set and has to be equal to adapters folder name and main file name excluding extension
@@ -17,7 +18,6 @@ let adapter;
 var lastMessageTime = 0;
 var lastMessageText = '';
 var users = {};
-var iogoPro = false;
 
 var config = {
     apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
@@ -33,12 +33,12 @@ global.XMLHttpRequest = require("xhr2");
 var fs = require('fs');
 var path = require('path');
 
-const lang = 'en';
-
 var uid;
 var database;
+var firestore;
 var dbStateQueuesRef;
 var dbObjectQueuesRef;
+var dbCommandQueuesRef;
 var loggedIn = false;
 var enum_states = {};
 var stateValues = {}; // detect changes
@@ -116,10 +116,49 @@ function _objectChange(id, obj) {
         }
         return;
     }
+
+    // update object (adapter)
+    if(obj.type === "adapter"){
+        var object = mapper.getAdapterObject(id, obj);
+
+        firestore.collection('users').doc(uid).collection('adapters').doc(node).set(object)
+            .then(function() {
+                adapter.log.debug('object (adapter) ' + id + ' saved successfully');
+            })
+            .catch(function(error) {
+                adapter.log.error(error);
+            });
+    }
+
+    // update object (host)
+    if(obj.type === "host"){
+        var object = mapper.getHostObject(id, obj);
+
+        firestore.collection('users').doc(uid).collection('hosts').doc(node).set(object)
+            .then(function() {
+                adapter.log.debug('object (host) ' + id + ' saved successfully');
+            })
+            .catch(function(error) {
+                adapter.log.error(error);
+            });
+    }
+
+    // update object (instance)
+    if(obj.type === "instance"){
+        var object = mapper.getInstanceObject(id, obj);
+
+        firestore.collection('users').doc(uid).collection('instances').doc(node).set(object)
+            .then(function() {
+                adapter.log.debug('object (instance) ' + id + ' saved successfully');
+            })
+            .catch(function(error) {
+                adapter.log.error(error);
+            });
+    }
     
     // update object (state)
-    if(obj.type === "state" && enum_states[id] === true){
-        var object = getStateObject(id, obj);
+    if(obj.type === "state" && (enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0)){
+        var object = mapper.getStateObject(id, obj);
 
         database.ref('objects/' + uid + '/' + node).set(JSON.stringify(object), function(error) {
             if (error) {
@@ -128,12 +167,20 @@ function _objectChange(id, obj) {
                 adapter.log.debug('object (state) ' + id + ' saved successfully');
             }
         });
+
+        firestore.collection('users').doc(uid).collection('states').doc(node).set(object)
+            .then(function() {
+                adapter.log.debug('object (state) ' + id + ' saved successfully');
+            })
+            .catch(function(error) {
+                adapter.log.error(error);
+            });
     }
 
     // update object (enum)
     if(obj.type === "enum"){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-            var object = getEnumObject(id, obj);
+            var object = mapper.getEnumObject(id, obj);
 
             for (var key in object.members) {
                 enum_states[object.members[key]] = true;
@@ -146,43 +193,16 @@ function _objectChange(id, obj) {
                     adapter.log.debug('object (enum) ' + id + ' saved successfully');
                 }
             });
+
+            firestore.collection('users').doc(uid).collection('enums').doc(node).set(object)
+            .then(function() {
+                adapter.log.debug('object (enum) ' + id + ' saved successfully');
+            })
+            .catch(function(error) {
+                adapter.log.error(error);
+            });
         }
     }
-}
-
-function getEnumObject(id, obj){
-    var tmp = {};
-    let name = obj.common.name;
-    if (typeof name === 'object') {
-        name = name[lang] || name.en;
-    }
-    tmp.id = id;
-    tmp.name = name;
-    tmp.members = obj.common.members;
-    if(iogoPro){
-        if(obj.common.icon){
-            tmp.icon = obj.common.icon;
-        }
-        if(obj.common.color){
-            tmp.color = obj.common.color;
-        }
-    }
-
-    return tmp;
-}
-
-function getStateObject(id, obj){
-    var tmp = {};
-    let name = obj.common.name;
-    if (typeof name === 'object') {
-        name = name[lang] || name.en;
-    }
-    tmp.name = name;
-    tmp["_id"] = id;
-    tmp.type = obj.type;
-    tmp.common = obj.common;
-
-    return tmp;
 }
 
 function _stateChange(id, state) {
@@ -210,8 +230,8 @@ function _stateChange(id, state) {
         return;
     }
 
-    if(enum_states[id] === true){
-        var tmp = getState(id, state);
+    if(enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0){
+        var tmp = mapper.getState(id, state);
         
         if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
             stateValues[id] = tmp.val;
@@ -223,6 +243,28 @@ function _stateChange(id, state) {
                 }
             });
         }
+    }
+
+    if(id === 'admin.0.info.updatesJson'){
+        var object = JSON.parse(state.val);     
+
+        // Get a new write batch
+        var batch = firestore.batch();
+
+        for (var name in object) {
+            if (object.hasOwnProperty(name)) {
+                var data = {};
+                data.availableVersion = object[name].availableVersion;
+                data.installedVersion = object[name].installedVersion;
+                var ref = firestore.collection("users").doc(uid).collection('adapters').doc("system_adapter_" + name);
+                batch.update(ref, data);
+            }
+        }
+
+        // Commit the batch
+        batch.commit().then(function () {
+            adapter.log.info('database verions updated');
+        });
     }
 }
 
@@ -239,25 +281,41 @@ function main() {
         return;
       });
     database = firebase.database();
+    firestore = firebase.firestore();
 
     firebase.auth().onAuthStateChanged(function(user) {
         loggedIn = false;
         if (user) {
             if(!user.isAnonymous){
                 user.getIdTokenResult().then((idTokenResult) => {
-                    iogoPro = idTokenResult.claims.pro;
-                    if(iogoPro){
-                        adapter.log.info('PRO features enabled');
+                    var licence_expiry = idTokenResult.claims.licence_expiry;
+                    if(licence_expiry){
+                        var expire_date = new Date(licence_expiry);
+                        if(expire_date > Date.now()){
+                            adapter.log.info('licence key found. licence valid until '+licence_expiry);
+                            uid = user.uid;
+                            adapter.log.info('logged in as: ' + uid + ' <= please keep this uid as your secret');
+                            loggedIn = true;
+                            initDatabase();
+                            adapter.setState('info.connection', true, true);
+                            adapter.subscribeForeignStates('*');
+                            adapter.subscribeForeignObjects('*');
+                            
+                            initAppDevices();
+                        }else{
+                            adapter.log.error('ioGo licence expired. Please upgrade your account and start instance afterwards again.');
+                            setTimeout(function(){adapter.terminate('ioGo licence expired')}, 1000);
+                        }
+                    }else{
+                        adapter.log.error('ioGo licence needed. Please upgrade your account and start instance afterwards again.');
+                        setTimeout(function(){adapter.terminate('ioGo licence needed')}, 1000);
+                        
                     }
-                    initDatabase();
                 })
                 .catch((error) => {
                     adapter.log.error(error);
                 });
-                uid = user.uid;
-                adapter.log.info('logged in as: ' + uid + ' <= please keep this uid as your secret');
-                loggedIn = true;
-                adapter.setState('info.connection', true, true);
+                
             }
         } else {
           // User is signed out.
@@ -266,11 +324,6 @@ function main() {
           uid = null;
         }
     });
-
-    adapter.subscribeForeignStates('*');
-    adapter.subscribeForeignObjects('*');
-    
-    initAppDevices();
 }
 
 function initAppDevices(){
@@ -294,17 +347,111 @@ function getNode(id){
 
 function initDatabase(){
     clearDatabase();
+    uploadAdapter();
+    uploadHost();
+    uploadInstance();
     uploadEnum();
+    uploadObjects();
     registerListener();
 }
 
 function clearDatabase(){
     database.ref('states/' + uid).remove();
     adapter.log.info('states from remote database removed');
-    database.ref('objects/' + uid).remove();
-    adapter.log.info('objects from remote database removed');
-    database.ref('enums/' + uid).remove();
-    adapter.log.info('enums from remote database removed');
+}
+
+function uploadAdapter(){
+    adapter.getForeignState('admin.0.info.updatesJson', function (err, state) {
+        if(err){
+            adapter.log.error(err);
+        }
+        var valObject = JSON.parse(state.val);
+
+        adapter.getForeignObjects('*', 'adapter', function (err, objects) {
+        
+            var objectList = [];
+    
+            for (var id in objects) {
+                var node = getNode(id);
+                var object = mapper.getAdapterObject(id, objects[id]);
+                if (valObject.hasOwnProperty(object.name)) {
+                    object.availableVersion = valObject[object.name].availableVersion;
+                }
+                adapter.log.debug('adapter object ' + JSON.stringify(object));
+                objectList[node] = object;
+            }
+    
+            // Get a new write batch
+            var batch = firestore.batch();
+    
+            for(var o in objectList){
+                var ref = firestore.collection("users").doc(uid).collection('adapters').doc(o);
+                batch.set(ref, objectList[o]);
+            }
+    
+            // Commit the batch
+            batch.commit().then(function () {
+                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' adapters');
+            });
+            
+        });
+    });
+}
+
+function uploadHost(){
+    adapter.getForeignObjects('*', 'host', function (err, objects) {
+        
+        var objectList = [];
+
+        for (var id in objects) {
+            var node = getNode(id);
+            var object = mapper.getHostObject(id, objects[id]);
+            adapter.log.debug('host object ' + JSON.stringify(object));
+            objectList[node] = object;
+        }
+
+        // Get a new write batch
+        var batch = firestore.batch();
+
+        for(var o in objectList){
+            var ref = firestore.collection("users").doc(uid).collection('hosts').doc(o);
+            batch.set(ref, objectList[o]);
+        }
+
+        // Commit the batch
+        batch.commit().then(function () {
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' hosts');
+        });
+        
+    });
+}
+
+function uploadInstance(){
+    adapter.getForeignObjects('*', 'instance', function (err, objects) {
+        
+        var objectList = [];
+
+        for (var id in objects) {
+            var node = getNode(id);
+            var object = mapper.getInstanceObject(id, objects[id]);
+            adapter.log.debug('instance object ' + JSON.stringify(object));
+            objectList[node] = object;
+        }
+
+        // Get a new write batch
+        var batch = firestore.batch();
+
+        for(var o in objectList){
+            var ref = firestore.collection("users").doc(uid).collection('instances').doc(o);
+            batch.set(ref, objectList[o]);
+        }
+
+        // Commit the batch
+        batch.commit().then(function () {
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' instances');
+        });
+        
+    });
 }
 
 function uploadEnum(){
@@ -315,22 +462,29 @@ function uploadEnum(){
         for (var id in objects) {
             if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
                 var node = getNode(id);
-                var object = getEnumObject(id, objects[id]);
+                var object = mapper.getEnumObject(id, objects[id]);
 
+                adapter.log.debug('enum object ' + JSON.stringify(object));
                 objectList[node] = object;
                 for (var key in object.members) {
                     enum_states[object.members[key]] = true;
                 }
+                
             }
         }
-        
-        database.ref('enums/' + uid).set(objectList, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
-                uploadObjects();
-            }
+
+        // Get a new write batch
+        var batch = firestore.batch();
+
+        for(var o in objectList){
+            var ref = firestore.collection("users").doc(uid).collection('enums').doc(o);
+            batch.set(ref, objectList[o]);
+        }
+
+        // Commit the batch
+        batch.commit().then(function () {
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
+            uploadStates();
         });
 
     });
@@ -341,24 +495,29 @@ function uploadObjects(){
         var objectList = [];
         
         for (var id in objects) {
-            if(enum_states[id] === true && objects[id].type === "state"){
+            if(objects[id].type === "state" && (enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0)){
                 var node = getNode(id);
                 stateTypes[id] = objects[id].common.type;
 
-                var tmp = getStateObject(id, objects[id]);
-
-                objectList[node] = JSON.stringify(tmp);
+                var object = mapper.getStateObject(id, objects[id]);
+                adapter.log.debug('state object ' + JSON.stringify(object));
+                objectList[node] = JSON.stringify(object);
             }
         }
 
-        database.ref('objects/' + uid).set(objectList, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' objects');
-                uploadStates();
-            }
+        // Get a new write batch
+        var batch = firestore.batch();
+
+        for(var o in objectList){
+            var ref = firestore.collection("users").doc(uid).collection('states').doc(o);
+            batch.set(ref, JSON.parse(objectList[o]));
+        }
+
+        // Commit the batch
+        batch.commit().then(function () {
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
         });
+
     });
 }
 
@@ -367,12 +526,15 @@ function uploadStates(){
         var objectList = [];
 
         for (var id in states) {
-            if(enum_states[id] === true){
+            if(enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0){
                 var node = getNode(id);
                 
                 if(states[id] != null){
-                    var tmp = getState(id, states[id]);
+                    var tmp = mapper.getState(id, states[id]);
                     
+                    if(typeof states[id].val == stateTypes[id]){
+                        adapter.log.warn('Value of state ' + id + ' has wrong type');
+                    }
                     stateValues[id] = tmp.val;
                     objectList[node] = tmp;
                 }
@@ -388,34 +550,17 @@ function uploadStates(){
     });
 }
 
-function getState(id, state){
-    var tmp = {};
-    tmp.id = id;
-    tmp.ack = state.ack;
-    if(iogoPro){
-        tmp.val = state.val;
-    }else if(typeof state.val === 'string'){
-        tmp.val = state.val.substr(1,100);
-    }
-    tmp.ts = state.ts;
-    tmp.lc = state.lc;
-    if(state.val !== null){
-        tmp.val = state.val.toString();
-    }
-
-    return tmp;
-}
-
 function registerListener(){
-    dbStateQueuesRef = firebase.database().ref('stateQueues/' + uid);
+    adapter.log.info('registering listener for uid:' + uid);
+    dbStateQueuesRef = database.ref('stateQueues/' + uid);
     dbStateQueuesRef.on('child_added',function(data){
-        adapter.log.debug('state update received: ' + JSON.stringify(data));
+        adapter.log.info('state update received: ' + JSON.stringify(data));
         var id = data.val().id;
         var val = data.val().val;
         setState(id, val);
         dbStateQueuesRef.child(data.ref.key).remove();
     });
-    dbObjectQueuesRef = firebase.database().ref('objectQueues/' + uid);
+    dbObjectQueuesRef = database.ref('objectQueues/' + uid);
     dbObjectQueuesRef.on('child_added',function(data){
         adapter.log.debug('object (state) update received: ' + JSON.stringify(data.val()));
         var obj = data.val();
@@ -437,6 +582,51 @@ function registerListener(){
 
         dbObjectQueuesRef.child(data.ref.key).remove();
     });
+    dbCommandQueuesRef = database.ref('commandQueues/' + uid);
+    dbCommandQueuesRef.on('child_added',function(data){
+        adapter.log.debug('command received: ' + JSON.stringify(data.val()));
+        var id = data.val().id;
+        var command = data.val().command;
+        
+        if(command == 'stopInstance'){
+            adapter.log.info('stopping instance');
+            adapter.getForeignObject(id,function (err, obj) {
+                if (err) {
+                    adapter.log.error(err);
+                } else {
+                    adapter.log.info(JSON.stringify(obj));
+                    if(obj.common.enabled){
+                        obj.common.enabled = false;  // Intanz ausschalten    
+                        adapter.setForeignObject(obj._id, obj, function (err) {
+                            if (err) adapter.log.error(err);
+                        });
+                    }else{
+                        adapter.log.warn('stopInstance: instance ' + id + ' already stopped')
+                    }
+                }
+            });
+        }
+        if(command == 'startInstance'){
+            adapter.log.info('starting instance');
+            adapter.getForeignObject(id,function (err, obj) {
+                if (err) {
+                    adapter.log.error(err);
+                } else {
+                    adapter.log.info(JSON.stringify(obj));
+                    if(!obj.common.enabled){
+                        obj.common.enabled = true;  // Intanz einschalten    
+                        adapter.setForeignObject(obj._id, obj, function (err) {
+                            if (err) adapter.log.error(err);
+                        });
+                    }else{
+                        adapter.log.warn('startInstance: instance ' + id + ' already started')
+                    }
+                }
+            });
+        }
+
+        dbCommandQueuesRef.child(data.ref.key).remove();
+    });
 }
 
 function setState(id, val){
@@ -454,31 +644,37 @@ function setState(id, val){
 }
 
 function removeListener(){
+    adapter.log.info('triggered listener removed');
     if(dbStateQueuesRef != undefined){
         dbStateQueuesRef.off();
+        adapter.log.info('listener removed');
     }
     if(dbObjectQueuesRef != undefined){
         dbObjectQueuesRef.off();
+    }
+    if(dbCommandQueuesRef != undefined){
+        dbCommandQueuesRef.off();
     }
 }
 
 function _message(obj){
     if (!obj || !obj.command) return;
-    if(!loggedIn) return;
-
-    // filter out double messages
-    var json = JSON.stringify(obj);
-    if (lastMessageTime && lastMessageText === JSON.stringify(obj) && new Date().getTime() - lastMessageTime < 1200) {
-        adapter.log.debug('Filter out double message [first was for ' + (new Date().getTime() - lastMessageTime) + 'ms]: ' + json);
-        return;
-    }
-
-    lastMessageTime = new Date().getTime();
-    lastMessageText = json;
 
     switch (obj.command) {
         case 'send':
             {
+                if(!loggedIn) return;
+
+                // filter out double messages
+                var json = JSON.stringify(obj);
+                if (lastMessageTime && lastMessageText === JSON.stringify(obj) && new Date().getTime() - lastMessageTime < 1200) {
+                    adapter.log.debug('Filter out double message [first was for ' + (new Date().getTime() - lastMessageTime) + 'ms]: ' + json);
+                    return;
+                }
+            
+                lastMessageTime = new Date().getTime();
+                lastMessageText = json;
+
                 if (obj.message) {
                     var count;
                     if (typeof obj.message === 'object') {
@@ -506,11 +702,11 @@ function sendMessage(text, username, title, url) {
     // Get a key for a new Post.
     var messageKey = database.ref('messages/' + uid).push().key;
 
-    if (iogoPro && text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
+    if (text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
         sendImage(text, messageKey).then(function(result){
             sendMessageToUser(null, username, title, messageKey, result, url)
         });
-    }else if(iogoPro && url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
+    }else if(url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
         sendImage(url, messageKey).then(function(result){
             sendMessageToUser(text, username, title, messageKey, result, url)
         });
