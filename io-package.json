@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.3.5",
+        "version": "0.4.0",
         "news": {
+            "0.4.x": {
+                "en": "Changes for ioGo app version 2.0.0+",
+                "de": "Anpassungen fpr app Version 2.0.0+"
+            },
             "0.3.x": {
                 "en": "added support of compact mode",
                 "de": "Unterstützung für Kompaktmodus hinzugefügt",
