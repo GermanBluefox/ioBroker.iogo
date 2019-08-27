@@ -14,7 +14,10 @@ Please visit iogo.nisnagel.de for more information on how to getting started.
 
 
 ## Configuration
-You should set your account information (email/password). After this start the adapter.
+You need an valid licence key to use this adapter.
+A licence can be bought after creating an acooun at https://iogo.nisnagel.de.
+
+Please enter your account information (email/password) in the instance configuration.
 
 ## Usage
 You can send message to all authenticated users over messageBox ```sendTo('iogo', 'New message')```
