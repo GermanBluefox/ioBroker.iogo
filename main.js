@@ -374,11 +374,16 @@ function uploadAdapter(){
             for (var id in objects) {
                 var node = getNode(id);
                 var object = mapper.getAdapterObject(id, objects[id]);
+                 
                 if (valObject.hasOwnProperty(object.name)) {
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
                 adapter.log.debug('adapter object ' + JSON.stringify(object));
-                objectList[node] = object;
+                if(object.common.enabled === null){
+                    adapter.log.error('adapter has no attribute common.enabled: ' + id);
+                }else{
+                    objectList[node] = object;
+                }
             }
     
             // Get a new write batch
@@ -551,7 +556,6 @@ function uploadStates(){
 }
 
 function registerListener(){
-    adapter.log.info('registering listener for uid:' + uid);
     dbStateQueuesRef = database.ref('stateQueues/' + uid);
     dbStateQueuesRef.on('child_added',function(data){
         adapter.log.info('state update received: ' + JSON.stringify(data));
