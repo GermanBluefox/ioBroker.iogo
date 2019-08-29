@@ -379,7 +379,7 @@ function uploadAdapter(){
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
                 adapter.log.debug('adapter object ' + JSON.stringify(object));
-                if(object.common.enabled && object.common.enabled !== null){
+                if(object.enabled && object.enabled !== null){
                     objectList[node] = object;
                 }else{
                     adapter.log.error('adapter has no attribute common.enabled: ' + id);
