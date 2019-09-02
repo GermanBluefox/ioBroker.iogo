@@ -506,18 +506,25 @@ function uploadObjects(){
             }
         }
 
-        // Get a new write batch
-        var batch = firestore.batch();
+        if(objectList.length > 400){
+            for(var o in objectList){
+                firestore.collection("users").doc(uid).collection('states').doc(o).set(objectList[o]);
+            }
+        }else{
 
-        for(var o in objectList){
-            var ref = firestore.collection("users").doc(uid).collection('states').doc(o);
-            batch.set(ref, JSON.parse(objectList[o]));
+            // Get a new write batch
+            var batch = firestore.batch();
+
+            for(var o in objectList){
+                var ref = firestore.collection("users").doc(uid).collection('states').doc(o);
+                batch.set(ref, JSON.parse(objectList[o]));
+            }
+
+            // Commit the batch
+            batch.commit().then(function () {
+                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
+            });
         }
-
-        // Commit the batch
-        batch.commit().then(function () {
-            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
-        });
 
     });
 }
