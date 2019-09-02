@@ -506,10 +506,11 @@ function uploadObjects(){
             }
         }
 
-        if(objectList.length > 400){
+        if(Object.keys(objectList).length > 300){
             for(var o in objectList){
-                firestore.collection("users").doc(uid).collection('states').doc(o).set(objectList[o]);
+                firestore.collection("users").doc(uid).collection('states').doc(o).set(JSON.parse(objectList[o]));
             }
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
         }else{
 
             // Get a new write batch
@@ -540,7 +541,7 @@ function uploadStates(){
                 if(states[id] != null){
                     var tmp = mapper.getState(id, states[id]);
                     
-                    if(typeof states[id].val == stateTypes[id]){
+                    if(typeof states[id].val != stateTypes[id]){
                         adapter.log.warn('Value of state ' + id + ' has wrong type');
                     }
                     stateValues[id] = tmp.val;
@@ -552,7 +553,7 @@ function uploadStates(){
             if (error) {
                 adapter.log.error(error);
             } else {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
+                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' state values');
             }
         });
     });
