@@ -18,6 +18,7 @@ let adapter;
 var lastMessageTime = 0;
 var lastMessageText = '';
 var users = {};
+var lastTs = 0;
 
 var config = {
     apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
@@ -203,6 +204,8 @@ function _objectChange(id, obj) {
             });
         }
     }
+
+    adapter.setState('info.ts', object.ts, true);
 }
 
 function _stateChange(id, state) {
@@ -230,7 +233,7 @@ function _stateChange(id, state) {
         return;
     }
 
-    if(enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0){
+    if(enum_states[id] === true){
         var tmp = mapper.getState(id, state);
         
         if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
@@ -243,6 +246,37 @@ function _stateChange(id, state) {
                 }
             });
         }
+    }
+
+    if(id.indexOf('system.adapter.') === 0){
+        var node = getNode(getInstanceFromId(id));
+        var attr = id.substr(id.lastIndexOf(".")+1);
+
+        if(attr === 'cpu'){
+            state.val = parseFloat(state.val);
+        }
+        database.ref('instances/' + uid + '/' + node + '/' + attr).set(state.val, function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.debug('instance ' + id + ' updated successfully');
+            }
+        });
+    }
+
+    if(id.indexOf('system.host.') === 0){
+        var node = getNode(getHostFromId(id));
+        var attr = id.substr(id.lastIndexOf(".")+1);
+        if(attr === 'cpu'){
+            state.val = parseFloat(state.val);
+        }
+        database.ref('hosts/' + uid + '/' + node + '/' + attr).set(state.val, function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.debug('host ' + id + ' updated successfully');
+            }
+        });
     }
 
     if(id === 'admin.0.info.updatesJson'){
@@ -279,7 +313,12 @@ function main() {
     firebase.auth().signInWithEmailAndPassword(adapter.config.email, adapter.config.password).catch(function(error) {
         adapter.log.error('Authentication: ' + error.code + ' # ' + error.message);
         return;
-      });
+    });
+
+    adapter.getState('info.ts', (err, state) => {
+        adapter.log.info('Last synchronisation at: ' + state.val);
+        lastTs = state.val;
+    });
     database = firebase.database();
     firestore = firebase.firestore();
 
@@ -356,6 +395,8 @@ function initDatabase(){
 }
 
 function clearDatabase(){
+    database.ref('hosts/' + uid).remove();
+    database.ref('instances/' + uid).remove();
     database.ref('states/' + uid).remove();
     adapter.log.info('states from remote database removed');
 }
@@ -379,7 +420,9 @@ function uploadAdapter(){
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
                 adapter.log.debug('adapter object ' + JSON.stringify(object));
-                objectList[node] = object;
+                if(object.ts > lastTs){
+                    objectList[node] = object;
+                }
             }
     
             // Get a new write batch
@@ -408,7 +451,9 @@ function uploadHost(){
             var node = getNode(id);
             var object = mapper.getHostObject(id, objects[id]);
             adapter.log.debug('host object ' + JSON.stringify(object));
-            objectList[node] = object;
+            if(object.ts > lastTs){
+                objectList[node] = object;
+            }
         }
 
         // Get a new write batch
@@ -436,7 +481,9 @@ function uploadInstance(){
             var node = getNode(id);
             var object = mapper.getInstanceObject(id, objects[id]);
             adapter.log.debug('instance object ' + JSON.stringify(object));
-            objectList[node] = object;
+            if(object.ts > lastTs){
+                objectList[node] = object;
+            }
         }
 
         // Get a new write batch
@@ -466,7 +513,9 @@ function uploadEnum(){
                 var object = mapper.getEnumObject(id, objects[id]);
 
                 adapter.log.debug('enum object ' + JSON.stringify(object));
-                objectList[node] = object;
+                if(object.ts > lastTs){
+                    objectList[node] = object;
+                }
                 for (var key in object.members) {
                     enum_states[object.members[key]] = true;
                 }
@@ -496,48 +545,56 @@ function uploadObjects(){
         var objectList = [];
         
         for (var id in objects) {
-            if(objects[id].type === "state" && (enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0)){
+            if(objects[id].type === "state" && enum_states[id] === true){
                 var node = getNode(id);
                 stateTypes[id] = objects[id].common.type;
 
                 var object = mapper.getStateObject(id, objects[id]);
                 adapter.log.debug('state object ' + JSON.stringify(object));
-                objectList[node] = JSON.stringify(object);
+                if(object.ts > lastTs){
+                    objectList[node] = JSON.stringify(object);
+                }
             }
         }
 
-        if(Object.keys(objectList).length > 300){
-            for(var o in objectList){
-                firestore.collection("users").doc(uid).collection('states').doc(o).set(JSON.parse(objectList[o]));
-            }
+        // Get a new write batch
+        var batch = firestore.batch();
+
+        for(var o in objectList){
+            var ref = firestore.collection("users").doc(uid).collection('states').doc(o);
+            batch.set(ref, JSON.parse(objectList[o]));
+        }
+
+        // Commit the batch
+        batch.commit().then(function () {
             adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
-        }else{
-
-            // Get a new write batch
-            var batch = firestore.batch();
-
-            for(var o in objectList){
-                var ref = firestore.collection("users").doc(uid).collection('states').doc(o);
-                batch.set(ref, JSON.parse(objectList[o]));
-            }
-
-            // Commit the batch
-            batch.commit().then(function () {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
-            });
-        }
+        });
 
     });
+}
+
+function getInstanceFromId(id){
+    var tmp = id.substr(15);
+    tmp = tmp.substr(0, tmp.lastIndexOf('.'));
+    return tmp;
+}
+
+function getHostFromId(id){
+    var tmp = id.substr(12);
+    tmp = tmp.substr(0, tmp.lastIndexOf('.'));
+    return tmp;
 }
 
 function uploadStates(){
     adapter.getForeignStates('*', function (err, states) {
         var objectList = [];
+        var instanceList = [];
+        var hostList = [];
 
         for (var id in states) {
-            if(enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0){
+            
+            if(enum_states[id] === true){
                 var node = getNode(id);
-                
                 if(states[id] != null){
                     var tmp = mapper.getState(id, states[id]);
                     
@@ -548,6 +605,38 @@ function uploadStates(){
                     objectList[node] = tmp;
                 }
             }
+            if(id.indexOf('system.adapter.') === 0 && id.lastIndexOf('upload') === -1){
+                var node = getNode(getInstanceFromId(id));
+                if(states[id] != null){
+                    if(instanceList[node] === undefined){
+                        instanceList[node] = {};
+                    }
+                    if(instanceList[node]['id'] === undefined){
+                        instanceList[node]['id'] = 'system.adapter.' + getInstanceFromId(id);
+                    }
+                    var attr = id.substr(id.lastIndexOf(".")+1);
+                    if(attr === 'cpu'){
+                        states[id].val = parseFloat(states[id].val);
+                    }
+                    instanceList[node][attr] = states[id].val;
+                }
+            }
+            if(id.indexOf('system.host.') === 0){
+                var node = getNode(getHostFromId(id));
+                if(states[id] != null){
+                    if(hostList[node] === undefined){
+                        hostList[node] = {};
+                    }
+                    if(hostList[node]['id'] === undefined){
+                        hostList[node]['id'] = 'system.host.' + getHostFromId(id);
+                    }
+                    var attr = id.substr(id.lastIndexOf(".")+1);
+                    if(attr === 'cpu'){
+                        states[id].val = parseFloat(states[id].val);
+                    }
+                    hostList[node][attr] = states[id].val;
+                }
+            }
         }
         database.ref('states/' + uid).set(objectList, function(error) {
             if (error) {
@@ -556,6 +645,23 @@ function uploadStates(){
                 adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' state values');
             }
         });
+        
+        database.ref('instances/' + uid).set(instanceList, function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.info('database initialized with ' + Object.keys(instanceList).length + ' instance values');
+            }
+        });
+
+        database.ref('hosts/' + uid).set(hostList, function(error) {
+            if (error) {
+                adapter.log.error(error);
+            } else {
+                adapter.log.info('database initialized with ' + Object.keys(hostList).length + ' host values');
+            }
+        });
+        
     });
 }
 
