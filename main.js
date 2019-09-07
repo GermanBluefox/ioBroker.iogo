@@ -108,12 +108,24 @@ function _objectChange(id, obj) {
     // delete object
     if(obj === null){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-            database.ref('enums/' + uid + '/' + node).remove();
+            firestore.collection("users").doc(uid).collection('enums').doc(node).delete();
             adapter.log.debug('object (enum) ' + id + ' removed successfully');
         }
         if(enum_states[id] === true){
-            database.ref('objects/' + uid + '/' + node).remove();
+            firestore.collection("users").doc(uid).collection('states').doc(node).delete();
             adapter.log.debug('object (state) ' + id + ' removed successfully');
+        }
+        if(id.indexOf('system.adapter') === 0 && (id.match(/\./g)||[]).length === 2){
+            firestore.collection("users").doc(uid).collection('adapters').doc(node).delete();
+            adapter.log.debug('object (adapter) ' + id + ' removed successfully');
+        }
+        if(id.indexOf('system.adapter') === 0 && (id.match(/\./g)||[]).length === 3){
+            firestore.collection("users").doc(uid).collection('instances').doc(node).delete();
+            adapter.log.debug('object (instance) ' + id + ' removed successfully');
+        }
+        if(id.indexOf('system.host') === 0){
+            firestore.collection("users").doc(uid).collection('hosts').doc(node).delete();
+            adapter.log.debug('object (host) ' + id + ' removed successfully');
         }
         return;
     }
@@ -158,7 +170,7 @@ function _objectChange(id, obj) {
     }
     
     // update object (state)
-    if(obj.type === "state" && (enum_states[id] === true || id.indexOf('system.adapter.') === 0 || id.indexOf('system.host.') === 0)){
+    if(obj.type === "state" && enum_states[id] === true){
         var object = mapper.getStateObject(id, obj);
 
         database.ref('objects/' + uid + '/' + node).set(JSON.stringify(object), function(error) {
@@ -205,7 +217,7 @@ function _objectChange(id, obj) {
         }
     }
 
-    adapter.setState('info.ts', object.ts, true);
+    adapter.setState('info.ts', obj.ts, true);
 }
 
 function _stateChange(id, state) {
@@ -316,8 +328,12 @@ function main() {
     });
 
     adapter.getState('info.ts', (err, state) => {
-        adapter.log.info('Last synchronisation at: ' + state.val);
-        lastTs = state.val;
+        if(state !== null){
+            adapter.log.info('Last synchronisation at: ' + state.val);
+            lastTs = state.val;
+        }else{
+            lastTs = 0;
+        }
     });
     database = firebase.database();
     firestore = firebase.firestore();
@@ -638,6 +654,7 @@ function uploadStates(){
                 }
             }
         }
+
         database.ref('states/' + uid).set(objectList, function(error) {
             if (error) {
                 adapter.log.error(error);
