@@ -427,11 +427,12 @@ function uploadAdapter(){
         adapter.getForeignObjects('*', 'adapter', function (err, objects) {
         
             var objectList = [];
+            var allAdapters = [];
     
             for (var id in objects) {
                 var node = getNode(id);
                 var object = mapper.getAdapterObject(id, objects[id]);
-                 
+                allAdapters[node] = true;
                 if (valObject.hasOwnProperty(object.name)) {
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
@@ -451,8 +452,26 @@ function uploadAdapter(){
     
             // Commit the batch
             batch.commit().then(function () {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' adapters');
+                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' changed adapters');
             });
+
+            let adaptersRef = firestore.collection("users").doc(uid).collection('adapters');
+            let query = adaptersRef.get()
+                .then(snapshot => {
+                    if (snapshot.empty) {
+                        adapter.log.warn('No matching documents.');
+                        return;
+                    }  
+                    snapshot.forEach(doc => {
+                        if(allAdapters[doc.id] == null){
+                            adapter.log.info('Deleting adapter ' + doc.id);
+                            adaptersRef.doc(doc.id).delete();
+                        }
+                    });
+                })
+                .catch(err => {
+                    adapter.log.error('Error getting documents', err);
+                });
             
         });
     });
@@ -462,11 +481,13 @@ function uploadHost(){
     adapter.getForeignObjects('*', 'host', function (err, objects) {
         
         var objectList = [];
+        var allHosts = [];
 
         for (var id in objects) {
             var node = getNode(id);
             var object = mapper.getHostObject(id, objects[id]);
             adapter.log.debug('host object ' + JSON.stringify(object));
+            allHosts[node] = true;
             if(object.ts > lastTs){
                 objectList[node] = object;
             }
@@ -481,10 +502,30 @@ function uploadHost(){
         }
 
         // Commit the batch
-        batch.commit().then(function () {
-            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' hosts');
-        });
+        batch.commit()
+            .then(function () {
+                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' changed hosts');
+            });
+
         
+        let hostsRef = firestore.collection("users").doc(uid).collection('hosts');
+        let query = hostsRef.get()
+            .then(snapshot => {
+                if (snapshot.empty) {
+                    adapter.log.warn('No matching documents.');
+                    return;
+                }  
+                snapshot.forEach(doc => {
+                    if(allHosts[doc.id] == null){
+                        adapter.log.info('Deleting host ' + doc.id);
+                        hostsRef.doc(doc.id).delete();
+                    }
+                });
+            })
+            .catch(err => {
+                adapter.log.error('Error getting documents', err);
+            });
+
     });
 }
 
@@ -492,11 +533,13 @@ function uploadInstance(){
     adapter.getForeignObjects('*', 'instance', function (err, objects) {
         
         var objectList = [];
+        var allInstances = [];
 
         for (var id in objects) {
             var node = getNode(id);
             var object = mapper.getInstanceObject(id, objects[id]);
             adapter.log.debug('instance object ' + JSON.stringify(object));
+            allInstances[node] = true;
             if(object.ts > lastTs){
                 objectList[node] = object;
             }
@@ -512,8 +555,26 @@ function uploadInstance(){
 
         // Commit the batch
         batch.commit().then(function () {
-            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' instances');
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' changed instances');
         });
+
+        let instanceRef = firestore.collection("users").doc(uid).collection('instances');
+        let query = instanceRef.get()
+            .then(snapshot => {
+                if (snapshot.empty) {
+                    adapter.log.warn('No matching documents.');
+                    return;
+                }  
+                snapshot.forEach(doc => {
+                    if(allInstances[doc.id] == null){
+                        adapter.log.info('Deleting instance ' + doc.id);
+                        instanceRef.doc(doc.id).delete();
+                    }
+                });
+            })
+            .catch(err => {
+                adapter.log.error('Error getting documents', err);
+            });
         
     });
 }
@@ -522,12 +583,13 @@ function uploadEnum(){
     adapter.getForeignObjects('*', 'enum', function (err, objects) {
         
         var objectList = [];
+        var allEnums = [];
         
         for (var id in objects) {
             if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
                 var node = getNode(id);
                 var object = mapper.getEnumObject(id, objects[id]);
-
+                allEnums[node] = true;
                 adapter.log.debug('enum object ' + JSON.stringify(object));
                 if(object.ts > lastTs){
                     objectList[node] = object;
@@ -549,9 +611,27 @@ function uploadEnum(){
 
         // Commit the batch
         batch.commit().then(function () {
-            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' enums');
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' changed enums');
             uploadStates();
         });
+
+        let enumRef = firestore.collection("users").doc(uid).collection('enums');
+        let query = enumRef.get()
+            .then(snapshot => {
+                if (snapshot.empty) {
+                    adapter.log.warn('No matching documents.');
+                    return;
+                }  
+                snapshot.forEach(doc => {
+                    if(allEnums[doc.id] == null){
+                        adapter.log.info('Deleting enum ' + doc.id);
+                        enumRef.doc(doc.id).delete();
+                    }
+                });
+            })
+            .catch(err => {
+                adapter.log.error('Error getting documents', err);
+            });
 
     });
 }
@@ -559,12 +639,13 @@ function uploadEnum(){
 function uploadObjects(){
     adapter.getForeignObjects('*', 'state', function (err, objects) {
         var objectList = [];
-        
+        var allStates = [];
+
         for (var id in objects) {
             if(objects[id].type === "state" && enum_states[id] === true){
                 var node = getNode(id);
                 stateTypes[id] = objects[id].common.type;
-
+                allStates[node] = true;
                 var object = mapper.getStateObject(id, objects[id]);
                 adapter.log.debug('state object ' + JSON.stringify(object));
                 if(object.ts > lastTs){
@@ -583,8 +664,26 @@ function uploadObjects(){
 
         // Commit the batch
         batch.commit().then(function () {
-            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' states');
+            adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' changed states');
         });
+
+        let statesRef = firestore.collection("users").doc(uid).collection('states');
+        let query = statesRef.get()
+            .then(snapshot => {
+                if (snapshot.empty) {
+                    adapter.log.warn('No matching documents.');
+                    return;
+                }  
+                snapshot.forEach(doc => {
+                    if(allStates[doc.id] == null){
+                        adapter.log.info('Deleting state ' + doc.id);
+                        statesRef.doc(doc.id).delete();
+                    }
+                });
+            })
+            .catch(err => {
+                adapter.log.error('Error getting documents', err);
+            });
 
     });
 }
