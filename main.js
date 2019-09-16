@@ -38,7 +38,7 @@ var uid;
 var database;
 var firestore;
 var dbStateQueuesRef;
-var dbObjectQueuesRef;
+var dbDevicesRef;
 var dbCommandQueuesRef;
 var loggedIn = false;
 var enum_states = {};
@@ -401,20 +401,12 @@ function getNode(id){
 }
 
 function initDatabase(){
-    clearDatabase();
     uploadAdapter();
     uploadHost();
     uploadInstance();
     uploadEnum();
     uploadObjects();
     registerListener();
-}
-
-function clearDatabase(){
-    database.ref('hosts/' + uid).remove();
-    database.ref('instances/' + uid).remove();
-    database.ref('states/' + uid).remove();
-    adapter.log.info('states from remote database removed');
 }
 
 function uploadAdapter(){
@@ -784,33 +776,20 @@ function uploadStates(){
 function registerListener(){
     dbStateQueuesRef = database.ref('stateQueues/' + uid);
     dbStateQueuesRef.on('child_added',function(data){
-        adapter.log.info('state update received: ' + JSON.stringify(data));
+        adapter.log.info('state update received: ' + JSON.stringify(data.val()));
         var id = data.val().id;
         var val = data.val().val;
         setState(id, val);
         dbStateQueuesRef.child(data.ref.key).remove();
     });
-    dbObjectQueuesRef = database.ref('objectQueues/' + uid);
-    dbObjectQueuesRef.on('child_added',function(data){
-        adapter.log.debug('object (state) update received: ' + JSON.stringify(data.val()));
-        var obj = data.val();
-        var id = obj.id;
-        var val = obj.val;
-        delete obj.id;
-        delete obj.val;
-        stateTypes[id] = obj.common.type;
-        
-        adapter.setObject(id, obj, function(err, obj) {
-            if (!err && obj){
-                adapter.log.info('Object ' + id + ' created');
-                if(val){
-                    adapter.log.info('State ' + id + ' set to:' + val);
-                    setState('iogo.0.' + id, val);
-                }
-            } 
-        });
-
-        dbObjectQueuesRef.child(data.ref.key).remove();
+    dbDevicesRef = database.ref('devices/' + uid);
+    dbDevicesRef.on('child_added',function(data){
+        adapter.log.info('device update received: ' + JSON.stringify(data.val()));
+        createDevice(data.key, data.val());
+    });
+    dbDevicesRef.on('child_changed',function(data){
+        adapter.log.info('device update received: ' + JSON.stringify(data.val()));
+        setDevice(data.key, data.val());
     });
     dbCommandQueuesRef = database.ref('commandQueues/' + uid);
     dbCommandQueuesRef.on('child_added',function(data){
@@ -873,14 +852,125 @@ function setState(id, val){
     }
 }
 
+function createDevice(id, data){
+    // create device
+    adapter.setObjectNotExists('iogo.0.' + id, {
+        type: 'device',
+        common: {
+            name: data.name + ' (Device ID ' + id + ')'
+        },
+        native: {}
+    });
+    // create states
+    adapter.setObjectNotExists('iogo.0.' + id + '.battery.level', {
+        type: 'state',
+        common: {
+            name: 'battery level',
+            desc: 'battery level of device ' + id,
+            type: 'number',
+            role: 'value.battery',
+            min: 0,
+            max: 100,
+            unit: '%',
+            read: true,
+            write: false
+        },
+        native: {}
+    }, function(err, obj) {
+        if (!err && obj) {
+            adapter.log.info('Objects for battery-level (' + id + ') created');
+            adapter.setState('iogo.0.' + id + + '.battery.level', data.batteryLevel);
+        }
+    });
+
+    adapter.setObjectNotExists('iogo.0.' + id + '.battery.charging', {
+        type: 'state',
+        common: {
+            name: 'battery charging',
+            desc: 'battery charging of device ' + id,
+            type: 'boolean',
+            role: 'indicator.charging',
+            read: true,
+            write: false
+        },
+        native: {}
+    }, function(err, obj) {
+        if (!err && obj) {
+            adapter.log.info('Objects for battery-charging (' + id + ') created');
+            adapter.setState('iogo.0.' + id + + '.battery.charging', data.batteryCharging);
+        }
+    });
+
+    adapter.setObjectNotExists('iogo.0.' + id + '.name', {
+        type: 'state',
+        common: {
+            name: 'device name',
+            desc: 'name of device ' + id,
+            type: 'string',
+            role: 'info.name',
+            read: true,
+            write: false
+        },
+        native: {}
+    }, function(err, obj) {
+        if (!err && obj) {
+            adapter.log.info('Objects for name (' + id + ') created');
+            adapter.setState('iogo.0.' + id + + '.name', data.name);
+        }
+    });
+
+    adapter.setObjectNotExists('iogo.0.' + id + '.token', {
+        type: 'state',
+        common: {
+            name: 'device FCM token',
+            desc: 'unique token to receive push notification to device ' + id,
+            type: 'string',
+            role: 'text',
+            read: true,
+            write: false
+        },
+        native: {}
+    }, function(err, obj) {
+        if (!err && obj) {
+            adapter.log.info('Objects for token (' + id + ') created');
+            adapter.setState('iogo.0.' + id + + '.token', data.token);
+        }
+    });
+
+    adapter.setObjectNotExists('iogo.0.' + id + '.alive', {
+        type: 'state',
+        common: {
+            name: 'device status',
+            desc: 'indicator if device is online ' + id,
+            type: 'boolean',
+            role: 'info.reachable',
+            read: true,
+            write: false
+        },
+        native: {}
+    }, function(err, obj) {
+        if (!err && obj) {
+            adapter.log.info('Objects for alive (' + id + ') created');
+            adapter.setState('iogo.0.' + id + + '.alive', data.alive);
+        }
+    });
+}
+
+function setDevice(id, data){
+    adapter.setState(id + '.name', data.name);
+    adapter.setState(id + '.battery.level', data.batteryLevel);
+    adapter.setState(id + '.battery.charging', data.batteryCharging);
+    adapter.setState(id + '.token', data.token);
+    adapter.setState(id + '.alive', data.alive);
+}
+
 function removeListener(){
     adapter.log.info('triggered listener removed');
     if(dbStateQueuesRef != undefined){
         dbStateQueuesRef.off();
-        adapter.log.info('listener removed');
     }
-    if(dbObjectQueuesRef != undefined){
-        dbObjectQueuesRef.off();
+    if(dbDevicesRef != undefined){
+        dDevicesRef.off();
     }
     if(dbCommandQueuesRef != undefined){
         dbCommandQueuesRef.off();
@@ -930,7 +1020,7 @@ function sendMessage(text, username, title, url) {
     }
 
     // Get a key for a new Post.
-    var messageKey = database.ref('messages/' + uid).push().key;
+    var messageKey = database.ref('messageQueues/' + uid).push().key;
 
     if (text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
         sendImage(text, messageKey).then(function(result){
@@ -943,8 +1033,6 @@ function sendMessage(text, username, title, url) {
     }else{
         sendMessageToUser(text, username, title, messageKey)
     }
-    
-    
 }
 
 function getFilteredUsers(username){
@@ -1007,7 +1095,6 @@ function _sendMessageHelper(token, username, text, title, messageKey, url, filen
     // Write the new post's data simultaneously in the posts list and the user's post list.
     var updates = {};
     updates['/messageQueues/' + uid + '/' + username + '/' + messageKey] = mesasageData;
-    updates['/messagePushQueues/' + uid + '/' + messageKey] = mesasageData;
 
     if(filename != null){
         sendImage(filename, messageKey, username + '/' + url).then(function(result){
