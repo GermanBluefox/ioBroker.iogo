@@ -44,6 +44,7 @@ var loggedIn = false;
 var enum_states = {};
 var stateValues = {}; // detect changes
 var stateTypes = {};
+var checksum = {};
 
 function startAdapter(options) {
     options = options || {};
@@ -261,34 +262,35 @@ function _stateChange(id, state) {
     }
 
     if(id.indexOf('system.adapter.') === 0){
-        var node = getNode(getInstanceFromId(id));
-        var attr = id.substr(id.lastIndexOf(".")+1);
+        let node = getNode(getInstanceFromId(id));
+        let attr = id.substr(id.lastIndexOf(".")+1);
+        let val = getStateVal(id, attr, state.val);
 
-        if(attr === 'cpu'){
-            state.val = parseFloat(state.val);
+        if(val !== null){
+            database.ref('instances/' + uid + '/' + node + '/' + attr).set(val, function(error) {
+                if (error) {
+                    adapter.log.error(error);
+                } else {
+                    adapter.log.debug('instance ' + id + ' updated successfully');
+                }
+            });
         }
-        database.ref('instances/' + uid + '/' + node + '/' + attr).set(state.val, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.debug('instance ' + id + ' updated successfully');
-            }
-        });
     }
 
     if(id.indexOf('system.host.') === 0){
-        var node = getNode(getHostFromId(id));
-        var attr = id.substr(id.lastIndexOf(".")+1);
-        if(attr === 'cpu'){
-            state.val = parseFloat(state.val);
+        let node = getNode(getHostFromId(id));
+        let attr = id.substr(id.lastIndexOf(".")+1);
+        let val = getStateVal(id, attr, state.val);
+
+        if(val !== null){
+            database.ref('hosts/' + uid + '/' + node + '/' + attr).set(val, function(error) {
+                if (error) {
+                    adapter.log.error(error);
+                } else {
+                    adapter.log.debug('host ' + id + ' updated successfully');
+                }
+            });
         }
-        database.ref('hosts/' + uid + '/' + node + '/' + attr).set(state.val, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.debug('host ' + id + ' updated successfully');
-            }
-        });
     }
 
     if(id === 'admin.0.info.updatesJson'){
@@ -312,6 +314,25 @@ function _stateChange(id, state) {
             adapter.log.info('database verions updated');
         });
     }
+}
+
+function getStateVal(id, attr, stateVal){
+    let val = null;
+
+    if(attr === 'alive' || attr === 'connected'){
+        val = stateVal;
+    }
+    if(attr === 'diskFree' || attr === 'diskSize' || attr === 'diskWarning' 
+    || attr === 'freemem' || attr === 'memAvailable' || attr === 'memHeapTotal' || attr === 'memHeapUsed' || attr === 'memRss')
+    {
+        let tmpval = Math.round(parseFloat(stateVal));
+        if(stateValues[id] === null || stateValues[id] != tmpval){
+            val = tmpval;
+            stateValues[id] = tmpval;
+        }
+    }
+
+    return val;
 }
 
 function main() {
@@ -713,7 +734,7 @@ function uploadStates(){
                 }
             }
             if(id.indexOf('system.adapter.') === 0 && id.lastIndexOf('upload') === -1){
-                var node = getNode(getInstanceFromId(id));
+                let node = getNode(getInstanceFromId(id));
                 if(states[id] != null){
                     if(instanceList[node] === undefined){
                         instanceList[node] = {};
@@ -721,11 +742,11 @@ function uploadStates(){
                     if(instanceList[node]['id'] === undefined){
                         instanceList[node]['id'] = 'system.adapter.' + getInstanceFromId(id);
                     }
-                    var attr = id.substr(id.lastIndexOf(".")+1);
-                    if(attr === 'cpu'){
-                        states[id].val = parseFloat(states[id].val);
+                    let attr = id.substr(id.lastIndexOf(".")+1);
+                    let val = getStateVal(id, attr, states[id].val);
+                    if(val !== null){
+                        instanceList[node][attr] = val;
                     }
-                    instanceList[node][attr] = states[id].val;
                 }
             }
             if(id.indexOf('system.host.') === 0){
@@ -738,10 +759,10 @@ function uploadStates(){
                         hostList[node]['id'] = 'system.host.' + getHostFromId(id);
                     }
                     var attr = id.substr(id.lastIndexOf(".")+1);
-                    if(attr === 'cpu'){
-                        states[id].val = parseFloat(states[id].val);
+                    let val = getStateVal(id, attr, states[id].val);
+                    if(val !== null){
+                        hostList[node][attr] = val;
                     }
-                    hostList[node][attr] = states[id].val;
                 }
             }
         }
