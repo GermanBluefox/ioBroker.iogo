@@ -467,7 +467,7 @@ function uploadAdapter(){
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
                 let checksum = object.checksum;
-                if(checksum != remoteChecksumMap[node].indexOf(checksum)){
+                if(checksum != remoteChecksumMap[node]){
                     adapter.log.debug('uploading adapter: ' + node);
                     dbRef.doc(node).set(object);
                     remoteChecksumMap[node] = checksum;

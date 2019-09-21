@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.4.9",
+        "version": "0.4.10",
         "news": {
             "0.4.x": {
                 "en": "Changes for ioGo app version 2.0.0+",
