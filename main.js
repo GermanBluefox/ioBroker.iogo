@@ -1003,12 +1003,12 @@ function sendMessage(text, username, title, url) {
     let messageKey = database.ref('messageQueues/' + uid).push().key;
 
     if (text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
-        sendImage(text, messageKey).then(function(result){
-            sendMessageToUser(null, username, title, messageKey, result, url)
+        sendImage(text, messageKey).then(function(downloadurl){
+            sendMessageToUser(null, username, title, messageKey, downloadurl, text)
         });
     }else if(url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
-        sendImage(url, messageKey).then(function(result){
-            sendMessageToUser(text, username, title, messageKey, result, url)
+        sendImage(url, messageKey).then(function(downloadurl){
+            sendMessageToUser(text, username, title, messageKey, downloadurl, url)
         });
     }else{
         sendMessageToUser(text, username, title, messageKey)
@@ -1067,49 +1067,37 @@ function _sendMessageHelper(token, username, text, title, messageKey, url, filen
         title: title, 
         text: text,
         ts: timestamp,
-        img: url || null
+        url: url || null
     };
 
-    adapter.log.debug('MessageData:' + JSON.stringify(mesasageData));
+    if(url !== undefined){
+        mesasageData.img = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(filename);
+    }
+
+    adapter.log.info('MessageData:' + JSON.stringify(mesasageData));
 
     // Write the new post's data simultaneously in the posts list and the user's post list.
     let updates = {};
     updates['/messageQueues/' + uid + '/' + username + '/' + messageKey] = mesasageData;
 
-    if(filename != null){
-        sendImage(filename, messageKey, username + '/' + url).then(function(result){
-            database.ref().update(updates, function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.info('message saved successfully');
-                }
-            });
-        });
-    }else{
-        database.ref().update(updates, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('message saved successfully');
-            }
-        });
-    }
+    database.ref().update(updates, function(error) {
+        if (error) {
+            adapter.log.error(error);
+        } else {
+            adapter.log.info('message saved successfully');
+        }
+    });
     
     return count;
 }
 
-function sendImage(fileName, messageKey, uniqueName){
+function sendImage(fileName, messageKey){
     return new Promise((resolve, reject) => {
         let storage = firebase.storage();
         let storageRef = storage.ref();
         let retUrl;
         
-        if(uniqueName == null){
-            retUrl = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(fileName);
-        }else{
-            retUrl = uniqueName;
-        }
+        retUrl = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(fileName);
         
         let imageRef = storageRef.child('messages').child(uid).child(retUrl);
 
@@ -1144,7 +1132,10 @@ function sendImage(fileName, messageKey, uniqueName){
             reject();
         }, function() {
             // Handle successful uploads on complete
-            resolve(retUrl);
+            uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
+                adapter.log.info('File ' + retUrl + ' uploaded');
+                resolve(downloadURL);
+            });
             
         });
     });
