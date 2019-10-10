@@ -45,6 +45,7 @@ let enum_states = {};
 let stateValues = {};
 let stateTypes = {};
 let checksumMap = {};
+const commands = {};
 
 function startAdapter(options) {
     options = options || {};
@@ -203,6 +204,17 @@ function _objectChange(id, obj) {
         firestore.collection("users").doc(uid).set(checksumMap);
     }
 
+    if(obj.type === "state" && obj && obj.common && obj.common.custom && obj.common.custom[adapter.namespace] && obj.common.custom[adapter.namespace].enabled)
+    {
+        commands[id]        = obj.common.custom[adapter.namespace];
+        commands[id].type   = obj.common.type;
+        commands[id].states = obj.common.states;
+        commands[id].alias  = getAliasName(obj);
+    } else if (commands[id]) {
+        adapter.log.debug('Removed command: ' + id);
+        delete commands[id];
+    }
+
     // update object (enum)
     if(obj.type === "enum"){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
@@ -254,6 +266,11 @@ function _stateChange(id, state) {
 
     if(enum_states[id] === true){
         let tmp = mapper.getState(id, state);
+
+        if (state && state.ack && commands[id]) {
+            adapter.log.info('send message for id:' + id);
+            sendMessage(getReportStatus(id, state));
+        }
         
         if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
             stateValues[id] = tmp.val;
@@ -339,6 +356,30 @@ function getStateVal(id, attr, stateVal){
     }
 
     return val;
+}
+
+function getReportStatus(id, state) {
+    adapter.log.info('getReportStatus for id:' + JSON.stringify(commands[id]));
+    if (commands[id].type === 'boolean') {
+        return `${commands[id].alias} => ${state.val ? commands[id].onStatus || 'ON' : commands[id].offStatus || 'OFF'}`;
+    } else {
+        if (commands[id].states && commands[id].states[state.val] !== undefined) {
+            state.val = commands[id].states[state.val];
+        }
+        return `${commands[id].alias} => ${state.val}`;
+    }
+}
+
+function getAliasName(obj) {
+    if (obj.common.custom[adapter.namespace].alias) {
+        return obj.common.custom[adapter.namespace].alias;
+    } else {
+        let name = obj.common.name;
+        if (typeof name === 'object') {
+            name = name[systemLang] || name.en;
+        }
+        return name || obj._id;
+    }
 }
 
 function main() {
@@ -624,6 +665,14 @@ function uploadStates(){
 
         for (let id in objects) {
             if(objects[id].type === "state" && enum_states[id] === true){
+                let obj = objects[id];
+                if (obj.common && obj.common.custom && obj.common.custom[adapter.namespace] && obj.common.custom[adapter.namespace].enabled) {
+                    commands[id] = obj.common.custom[adapter.namespace];
+                    commands[id].type   = obj.common.type;
+                    commands[id].states = obj.common.states;
+                    commands[id].alias  = getAliasName(obj);
+                    adapter.log.info('custom found for id:' + id);
+                }
                 stateTypes[id] = objects[id].common.type;
                 let node = getNode(id);
                 let object = mapper.getStateObject(id, objects[id]);
