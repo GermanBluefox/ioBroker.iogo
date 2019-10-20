@@ -206,6 +206,7 @@ function _objectChange(id, obj) {
 
     if(obj.type === "state" && obj && obj.common && obj.common.custom && obj.common.custom[adapter.namespace] && obj.common.custom[adapter.namespace].enabled)
     {
+        adapter.log.debug('Command added: ' + id);
         commands[id]        = obj.common.custom[adapter.namespace];
         commands[id].type   = obj.common.type;
         commands[id].states = obj.common.states;
@@ -240,7 +241,7 @@ function _objectChange(id, obj) {
 function _stateChange(id, state) {
     let node = getNode(id);
 
-    adapter.log.debug('state changed id:' + id);
+    adapter.log.silly('state changed id:' + id);
 
     if(id.endsWith('.token')){
         let user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
@@ -264,13 +265,13 @@ function _stateChange(id, state) {
         return;
     }
 
-    if(enum_states[id] === true){
-        let tmp = mapper.getState(id, state);
+    if (state && state.ack && commands[id]) {
+        adapter.log.info('send message for id:' + id);
+        sendMessage(getReportStatus(id, state));
+    }
 
-        if (state && state.ack && commands[id]) {
-            adapter.log.info('send message for id:' + id);
-            sendMessage(getReportStatus(id, state));
-        }
+    if(enum_states[id] === true){
+        let tmp = mapper.getState(id, state);    
         
         if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
             stateValues[id] = tmp.val;
@@ -294,7 +295,7 @@ function _stateChange(id, state) {
                 if (error) {
                     adapter.log.error(error);
                 } else {
-                    adapter.log.debug('instance ' + id + ' updated successfully');
+                    adapter.log.silly('instance ' + id + ' updated successfully');
                 }
             });
         }
@@ -310,7 +311,7 @@ function _stateChange(id, state) {
                 if (error) {
                     adapter.log.error(error);
                 } else {
-                    adapter.log.debug('host ' + id + ' updated successfully');
+                    adapter.log.silly('host ' + id + ' updated successfully');
                 }
             });
         }
@@ -664,24 +665,27 @@ function uploadStates(){
         let allObjects = [];
 
         for (let id in objects) {
-            if(objects[id].type === "state" && enum_states[id] === true){
+            if(objects[id].type === "state"){
                 let obj = objects[id];
                 if (obj.common && obj.common.custom && obj.common.custom[adapter.namespace] && obj.common.custom[adapter.namespace].enabled) {
+                    
                     commands[id] = obj.common.custom[adapter.namespace];
                     commands[id].type   = obj.common.type;
                     commands[id].states = obj.common.states;
                     commands[id].alias  = getAliasName(obj);
                     adapter.log.info('custom found for id:' + id);
                 }
-                stateTypes[id] = objects[id].common.type;
-                let node = getNode(id);
-                let object = mapper.getStateObject(id, objects[id]);
-                allObjects[node] = true;
-                let checksum = object.checksum;
-                if(checksum != remoteChecksumMap[node]){
-                    adapter.log.debug('uploading state: ' + node);
-                    dbRef.doc(node).set(object);
-                    remoteChecksumMap[node] = checksum;
+                if(enum_states[id] === true){
+                    stateTypes[id] = objects[id].common.type;
+                    let node = getNode(id);
+                    let object = mapper.getStateObject(id, objects[id]);
+                    allObjects[node] = true;
+                    let checksum = object.checksum;
+                    if(checksum != remoteChecksumMap[node]){
+                        adapter.log.debug('uploading state: ' + node);
+                        dbRef.doc(node).set(object);
+                        remoteChecksumMap[node] = checksum;
+                    }
                 }
             }
         }
