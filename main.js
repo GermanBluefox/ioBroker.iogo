@@ -489,7 +489,12 @@ function uploadAdapter(){
         if(err){
             adapter.log.error(err);
         }
-        let valObject = JSON.parse(state.val);
+        let valObject = {};
+        if(state != null){
+            valObject = JSON.parse(state.val);
+        }else{
+            adapter.log.warn('admin.0.info.updatesJson not found');
+        }
 
         adapter.log.info('uploading adapter');
 
