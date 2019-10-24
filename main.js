@@ -46,6 +46,8 @@ let stateValues = {};
 let stateTypes = {};
 let checksumMap = {};
 const commands = {};
+let devices = {};
+let deviceAlive = false;
 
 function startAdapter(options) {
     options = options || {};
@@ -252,6 +254,9 @@ function _stateChange(id, state) {
         }
         adapter.log.info('user ' + user_name + ' changed');
     }
+    if(id.indexOf("iogo.") === 0 && id.endsWith('.alive')){
+        calcDeviceAlive(id, state.val);
+    }
 
     if(!loggedIn){
         return;
@@ -290,7 +295,7 @@ function _stateChange(id, state) {
         let attr = id.substr(id.lastIndexOf(".")+1);
         let val = getStateVal(id, attr, state.val);
 
-        if(val !== null){
+        if(val !== null && deviceAlive === true){
             database.ref('instances/' + uid + '/' + node + '/' + attr).set(val, function(error) {
                 if (error) {
                     adapter.log.error(error);
@@ -442,6 +447,21 @@ function main() {
     });
 }
 
+function calcDeviceAlive(id, val){
+    if(val !== null){
+        devices[id] = val;
+    }else{
+        delete devices[id];
+    }
+    deviceAlive = false;
+    Object.values(devices).forEach(value=>{
+        if(value === true){
+            deviceAlive = true;
+        }
+    });
+    adapter.log.info("calcDeviceAlive is: " + deviceAlive + " all devices " + JSON.stringify(devices));
+}
+
 function initAppDevices(){
     adapter.log.info('initialize app devices')
     adapter.getStates('*.token', function (err, states) {
@@ -452,6 +472,11 @@ function initAppDevices(){
                 users[user_name] = val;
                 adapter.log.info('device ' + user_name + ' captured');
             }
+        }
+    });
+    adapter.getStates('*.alive', function (err, states) {
+        for (let id in states) {
+            calcDeviceAlive(id, states[id].val);
         }
     });
 }
