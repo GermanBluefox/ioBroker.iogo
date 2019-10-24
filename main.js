@@ -278,7 +278,7 @@ function _stateChange(id, state) {
     if(enum_states[id] === true){
         let tmp = mapper.getState(id, state);    
         
-        if((stateValues[id] && stateValues[id] != tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
+        if((stateValues[id] === null || stateValues[id] !== tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
             stateValues[id] = tmp.val;
             database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
                 if (error) {
@@ -355,7 +355,7 @@ function getStateVal(id, attr, stateVal){
     || attr === 'freemem' || attr === 'memAvailable' || attr === 'memHeapTotal' || attr === 'memHeapUsed' || attr === 'memRss')
     {
         let tmpval = Math.round(parseFloat(stateVal));
-        if(stateValues[id] === null || stateValues[id] != tmpval){
+        if(stateValues[id] === null || stateValues[id] !== tmpval){
             val = tmpval;
             stateValues[id] = tmpval;
         }
@@ -539,7 +539,7 @@ function uploadAdapter(){
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
                 let checksum = object.checksum;
-                if(checksum != remoteChecksumMap[node]){
+                if(checksum !== remoteChecksumMap[node]){
                     adapter.log.debug('uploading adapter: ' + node);
                     dbRef.doc(node).set(object);
                     remoteChecksumMap[node] = checksum;
@@ -578,7 +578,7 @@ function uploadHost(){
             let object = mapper.getHostObject(id, objects[id]);
             allObjects[node] = true;
             let checksum = object.checksum;
-            if(checksum != remoteChecksumMap[node]){
+            if(checksum !== remoteChecksumMap[node]){
                 adapter.log.debug('uploading host: ' + node);
                 dbRef.doc(node).set(object);
                 remoteChecksumMap[node] = checksum;
@@ -616,7 +616,7 @@ function uploadInstance(){
             let object = mapper.getInstanceObject(id, objects[id]);
             allObjects[node] = true;
             let checksum = object.checksum;
-            if(checksum != remoteChecksumMap[node]){
+            if(checksum !== remoteChecksumMap[node]){
                 adapter.log.debug('uploading instance: ' + node);
                 dbRef.doc(node).set(object);
                 remoteChecksumMap[node] = checksum;
@@ -655,7 +655,7 @@ function uploadEnum(){
                 let object = mapper.getEnumObject(id, objects[id]);
                 let checksum = object.checksum;
                 allEnums[node] = true;
-                if(checksum != enumChecksumMap[node]){
+                if(checksum !== enumChecksumMap[node]){
                     adapter.log.debug('uploading enum: ' + node);
                     enumRef.doc(node).set(object);
                     enumChecksumMap[node] = checksum;
@@ -711,7 +711,7 @@ function uploadStates(){
                     let object = mapper.getStateObject(id, objects[id]);
                     allObjects[node] = true;
                     let checksum = object.checksum;
-                    if(checksum != remoteChecksumMap[node]){
+                    if(checksum !== remoteChecksumMap[node]){
                         adapter.log.debug('uploading state: ' + node);
                         dbRef.doc(node).set(object);
                         remoteChecksumMap[node] = checksum;
@@ -764,7 +764,7 @@ function uploadValues(){
                 if(states[id] != null){
                     let tmp = mapper.getState(id, states[id]);
                     
-                    if(typeof states[id].val != stateTypes[id]){
+                    if(typeof states[id].val !== stateTypes[id]){
                         adapter.log.warn('Value of state ' + id + ' has wrong type');
                     }
                     stateValues[id] = tmp.val;
@@ -1111,7 +1111,7 @@ function getFilteredUsers(username){
                 arrUser[value] = users[value];
             }
         });
-        if (userarray.length != matches) adapter.log.warn(userarray.length - matches + ' of ' + userarray.length + ' recipients are unknown!');
+        if (userarray.length !== matches) adapter.log.warn(userarray.length - matches + ' of ' + userarray.length + ' recipients are unknown!');
         return arrUser;
     } else {
         return users;
