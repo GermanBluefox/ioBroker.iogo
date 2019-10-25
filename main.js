@@ -44,10 +44,12 @@ let loggedIn = false;
 let enum_states = {};
 let stateValues = {};
 let stateTypes = {};
+let stateSyncTime = {};
 let checksumMap = {};
 const commands = {};
 let devices = {};
 let deviceAlive = false;
+
 
 function startAdapter(options) {
     options = options || {};
@@ -300,7 +302,7 @@ function _stateChange(id, state) {
                 if (error) {
                     adapter.log.error(error);
                 } else {
-                    adapter.log.silly('instance ' + id + ' updated successfully');
+                    adapter.log.debug('instance ' + id + ' updated successfully');
                 }
             });
         }
@@ -311,12 +313,12 @@ function _stateChange(id, state) {
         let attr = id.substr(id.lastIndexOf(".")+1);
         let val = getStateVal(id, attr, state.val);
 
-        if(val !== null){
+        if(val !== null && deviceAlive === true){
             database.ref('hosts/' + uid + '/' + node + '/' + attr).set(val, function(error) {
                 if (error) {
                     adapter.log.error(error);
                 } else {
-                    adapter.log.silly('host ' + id + ' updated successfully');
+                    adapter.log.debug('host ' + id + ' updated successfully');
                 }
             });
         }
@@ -349,15 +351,20 @@ function getStateVal(id, attr, stateVal){
     let val = null;
 
     if(attr === 'alive' || attr === 'connected'){
-        val = stateVal;
+        if(stateValues[id] == null || stateValues[id] !== stateVal){
+            val = stateVal;
+            stateValues[id] = stateVal;
+            stateSyncTime[id] = new Date().getTime();
+        }
     }
     if(attr === 'diskFree' || attr === 'diskSize' || attr === 'diskWarning' 
     || attr === 'freemem' || attr === 'memAvailable' || attr === 'memHeapTotal' || attr === 'memHeapUsed' || attr === 'memRss')
     {
         let tmpval = Math.round(parseFloat(stateVal));
-        if(stateValues[id] === null || stateValues[id] !== tmpval){
+        if(stateValues[id] == null || (Math.abs((tmpval / stateValues[id])-1) > 0.05  && Math.abs(tmpval - stateValues[id]) > 5)) {
             val = tmpval;
             stateValues[id] = tmpval;
+            stateSyncTime[id] = new Date().getTime();
         }
     }
 
@@ -476,7 +483,9 @@ function initAppDevices(){
     });
     adapter.getStates('*.alive', function (err, states) {
         for (let id in states) {
-            calcDeviceAlive(id, states[id].val);
+            if(states[id] !== null){
+                calcDeviceAlive(id, states[id].val);
+            }
         }
     });
 }
