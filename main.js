@@ -8,7 +8,6 @@
 
 // you have to require the utils module and call adapter function
 let utils = require('@iobroker/adapter-core'); // Get common adapter utils
-const mapper = require('./lib/mapper.js');
 
 // you have to call the adapter function and pass a options object
 // name has to be set and has to be equal to adapters folder name and main file name excluding extension
@@ -32,28 +31,26 @@ require("firebase/storage");
 global.XMLHttpRequest = require("xhr2");
 let fs = require('fs');
 let path = require('path');
-const InstanceSyncService = require('./lib/instance-service');
+const AdapterSyncService = require('./lib/adapter-service');
+const EnumSyncService = require('./lib/enum-service');
 const HostSyncService = require('./lib/host-service');
+const InstanceSyncService = require('./lib/instance-service');
+const StateSyncService = require('./lib/state-service');
 
 let uid;
 let database;
 let firestore;
-let dbStateQueuesRef;
 let dbDevicesRef;
 let dbCommandQueuesRef;
 let loggedIn = false;
-let enum_states = {};
-let stateValues = {};
-let stateTypes = {};
-let stateSyncTime = {};
-let adapterChecksumMap = {};
-let enumChecksumMap = {};
-let stateChecksumMap = {};
 const commands = {};
 let devices = {};
 let deviceAlive = false;
-let instance;
-let host;
+let adapterService;
+let enumService;
+let hostService;
+let instanceService;
+let stateService;
 
 function startAdapter(options) {
     options = options || {};
@@ -113,77 +110,40 @@ function _objectChange(id, obj) {
         return;
     }
 
-    let node = getNode(id);
-
     adapter.log.debug('object changed id:' + id);
 
     // delete object
     if(obj === null){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-            firestore.collection("users").doc(uid).collection('enums').doc(node).delete();
-            delete enumChecksumMap[node];
-            firestore.collection("users").doc(uid).collection("meta").doc("enumChecksumMap").set(enumChecksumMap);
-            adapter.log.debug('object (enum) ' + id + ' removed successfully');
+            enumService.onObjectChange(id, obj);
         }
-        if(enum_states[id] === true){
-            firestore.collection("users").doc(uid).collection('states').doc(node).delete();
-            delete stateChecksumMap[node];
-            firestore.collection("users").doc(uid).collection("meta").doc("stateChecksumMap").set(stateChecksumMap);
-            adapter.log.debug('object (state) ' + id + ' removed successfully');
-        }
+        stateService.objectChange(id, obj);
         if(id.indexOf('system.adapter') === 0 && (id.match(/\./g)||[]).length === 2){
-            firestore.collection("users").doc(uid).collection('adapters').doc(node).delete();
-            delete adapterChecksumMap[node];
-            firestore.collection("users").doc(uid).collection("meta").doc("adapterChecksumMap").set(adapterChecksumMap);
-            adapter.log.debug('object (adapter) ' + id + ' removed successfully');
+            adapterService.onObjectChange(id, obj);
         }
         if(id.indexOf('system.adapter') === 0 && (id.match(/\./g)||[]).length === 3){
-            instance.onObjectChange(id, obj);
+            instanceService.onObjectChange(id, obj);
         }
         if(id.indexOf('system.host') === 0){
-            host.onObjectChange(id, obj);
+            hostService.onObjectChange(id, obj);
         }
         return;
     }
 
-    // update object (adapter)
     if(obj.type === "adapter"){
-        let object = mapper.getAdapterObject(id, obj);
-
-        firestore.collection('users').doc(uid).collection('adapters').doc(node).set(object)
-            .then(function() {
-                adapter.log.debug('object (adapter) ' + id + ' saved successfully');
-            })
-            .catch(function(error) {
-                adapter.log.error(error);
-            });
-        adapterChecksumMap[node] = object.checksum;
-        firestore.collection("users").doc(uid).collection('meta').doc("adapterChecksumMap").set(adapterChecksumMap);
+        adapterService.onObjectChange(id, obj);
     }
 
-    // update object (host)
     if(obj.type === "host"){
-        host.onObjectChange(id, obj);
+        hostService.onObjectChange(id, obj);
     }
 
-    // update object (instance)
     if(obj.type === "instance"){
-        instance.onObjectChange(id, obj);
+        instanceService.onObjectChange(id, obj);
     }
     
-    // update object (state)
-    if(obj.type === "state" && enum_states[id] === true){
-        let object = mapper.getStateObject(id, obj);
-
-        firestore.collection('users').doc(uid).collection('states').doc(node).set(object)
-            .then(function() {
-                adapter.log.debug('object (state) ' + id + ' saved successfully');
-            })
-            .catch(function(error) {
-                adapter.log.error(error);
-            });
-        stateChecksumMap[node] = object.checksum;
-        firestore.collection("users").doc(uid).collection('meta').doc("stateChecksumMap").set(stateChecksumMap);
+    if(obj.type === "state"){
+        stateService.onObjectChange(id, obj);
     }
 
     if(obj.type === "state" && obj && obj.common && obj.common.custom && obj.common.custom[adapter.namespace] && obj.common.custom[adapter.namespace].enabled)
@@ -198,31 +158,13 @@ function _objectChange(id, obj) {
         delete commands[id];
     }
 
-    // update object (enum)
     if(obj.type === "enum"){
-        if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-            let object = mapper.getEnumObject(id, obj);
-
-            for (let key in object.members) {
-                enum_states[object.members[key]] = true;
-            }
-
-            firestore.collection('users').doc(uid).collection('enums').doc(node).set(object)
-                .then(function() {
-                    adapter.log.debug('object (enum) ' + id + ' saved successfully');
-                })
-                .catch(function(error) {
-                    adapter.log.error(error);
-                });
-            enumChecksumMap[node] = object.checksum;
-            firestore.collection("users").doc(uid).collection('meta').doc("enumChecksumMap").set(enumChecksumMap);
-        }
+        enumService.onObjectChange(id, obj);
+        stateService.checkEnumMembers(id, obj);
     }
 }
 
 function _stateChange(id, state) {
-    let node = getNode(id);
-
     adapter.log.silly('state changed id:' + id);
 
     if(id.endsWith('.token')){
@@ -243,10 +185,6 @@ function _stateChange(id, state) {
     }
 
     if(state === null){
-        if(enum_states[id] === true){
-            database.ref('states/' + uid + '/' + node).remove();
-            adapter.log.debug('state ' + id + ' removed succesfully');
-        }
         return;
     }
 
@@ -255,74 +193,19 @@ function _stateChange(id, state) {
         sendMessage(getReportStatus(id, state));
     }
 
-    if(enum_states[id] === true){
-        let tmp = mapper.getState(id, state);    
-        
-        if((stateValues[id] === null || stateValues[id] !== tmp.val) || state.from.indexOf('system.adapter.iogo') !== -1){
-            stateValues[id] = tmp.val;
-            database.ref('states/' + uid + '/' + node).set(tmp, function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.debug('state ' + id + ' saved successfully');
-                }
-            });
-        }
-    }
+    stateService.onStateChange(id, state);
 
     if(id.indexOf('system.adapter.') === 0 && deviceAlive === true){
-        instance.onStateChange(id, state);
+        instanceService.onStateChange(id, state);
     }
 
-    if(id.indexOf('system.host.') === 0){
-        host.onStateChange(id, state);
+    if(id.indexOf('system.hostService.') === 0){
+        hostService.onStateChange(id, state);
     }
 
     if(id === 'admin.0.info.updatesJson'){
-        let object = JSON.parse(state.val);     
-
-        // Get a new write batch
-        let batch = firestore.batch();
-
-        for (let name in object) {
-            if (object.hasOwnProperty(name)) {
-                let data = {};
-                data.availableVersion = object[name].availableVersion;
-                data.installedVersion = object[name].installedVersion;
-                let ref = firestore.collection("users").doc(uid).collection('adapters').doc("system_adapter_" + name);
-                batch.update(ref, data);
-            }
-        }
-
-        // Commit the batch
-        batch.commit().then(function () {
-            adapter.log.info('database verions updated');
-        });
+        adapterService.syncAvailableVersion(state.val);
     }
-}
-
-function getStateVal(id, attr, stateVal){
-    let val = null;
-
-    if(attr === 'alive' || attr === 'connected'){
-        if(stateValues[id] == null || stateValues[id] !== stateVal){
-            val = stateVal;
-            stateValues[id] = stateVal;
-            stateSyncTime[id] = new Date().getTime();
-        }
-    }
-    if(attr === 'diskFree' || attr === 'diskSize' || attr === 'diskWarning' 
-    || attr === 'freemem' || attr === 'memAvailable' || attr === 'memHeapTotal' || attr === 'memHeapUsed' || attr === 'memRss')
-    {
-        let tmpval = Math.round(parseFloat(stateVal));
-        if(stateValues[id] == null || (Math.abs((tmpval / stateValues[id])-1) > 0.05  && Math.abs(tmpval - stateValues[id]) > 5)) {
-            val = tmpval;
-            stateValues[id] = tmpval;
-            stateSyncTime[id] = new Date().getTime();
-        }
-    }
-
-    return val;
 }
 
 function getReportStatus(id, state) {
@@ -382,8 +265,12 @@ function main() {
                             adapter.setState('info.connection', true, true);
                             adapter.subscribeForeignStates('*');
                             adapter.subscribeForeignObjects('*');
-                            instance = new InstanceSyncService(adapter, firestore, database, uid);
-                            host = new HostSyncService(adapter, firestore, database, uid);
+                            adapterService = new AdapterSyncService(adapter, firestore, database, uid);
+                            enumService = new EnumSyncService(adapter, firestore, database, uid);
+                            hostService = new HostSyncService(adapter, firestore, database, uid);
+                            instanceService = new InstanceSyncService(adapter, firestore, database, uid);
+                            stateService = new StateSyncService(adapter, firestore, database, uid);
+                            
                             initAppDevices();
                         }else{
                             adapter.log.error('ioGo licence expired. Please upgrade your account and start instance afterwards again.');
@@ -445,99 +332,17 @@ function initAppDevices(){
     });
 }
 
-function getNode(id){
-    //replace unsupported character  . # [ ] $ /
-    return id.replace(/[.#\[\]\/$]/g,'_');
-}
-
 function initDatabase(){
-    let colRef = firestore.collection("users").doc(uid).collection('meta');
-    colRef.doc('adapterChecksumMap').get().then(function(doc) {
-        if (doc.exists) {
-            adapterChecksumMap = doc.data();
-            adapter.log.info('adapterChecksumMap geladen');
-        } 
-        uploadAdapter();
-    }).catch(function(error) {
-        adapter.log.error("Error getting document:", error);
-        uploadAdapter();
-    });
 
-    host && host.upload();
-    instance && instance.upload();
-    
-    colRef.doc('enumChecksumMap').get().then(function(doc) {
-        if (doc.exists) {
-            enumChecksumMap = doc.data();
-            adapter.log.info('enumChecksumMap geladen');
-        } 
-        uploadEnum();
-    }).catch(function(error) {
-        adapter.log.error("Error getting document:", error);
-        uploadEnum();
-    });
-    colRef.doc('stateChecksumMap').get().then(function(doc) {
-        if (doc.exists) {
-            stateChecksumMap = doc.data();
-            adapter.log.info('stateChecksumMap geladen');
-        } 
-        uploadStates();
-    }).catch(function(error) {
-        adapter.log.error("Error getting document:", error);
-        uploadStates();
-    });
+    adapterService && adapterService.upload();
+    enumService && enumService.upload();
+    hostService && hostService.upload();
+    instanceService && instanceService.upload();
+    stateService && stateService.upload();
+
+    initCommands();
     uploadConfig();
     registerListener();
-}
-
-function uploadAdapter(){
-    adapter.getForeignState('admin.0.info.updatesJson', function (err, state) {
-        if(err){
-            adapter.log.error(err);
-        }
-        let valObject = {};
-        if(state != null){
-            valObject = JSON.parse(state.val);
-        }else{
-            adapter.log.warn('admin.0.info.updatesJson not found');
-        }
-
-        adapter.log.info('uploading adapter');
-
-        adapter.getForeignObjects('*', 'adapter', function (err, objects) {
-        
-            adapter.log.debug('uploading adapter start');
-
-            let dbRef = firestore.collection("users").doc(uid).collection('adapters');
-            let allObjects = [];
-    
-            for (let id in objects) {
-                let node = getNode(id);
-                let object = mapper.getAdapterObject(id, objects[id]);
-                allObjects[node] = true;
-                if (valObject.hasOwnProperty(object.name)) {
-                    object.availableVersion = valObject[object.name].availableVersion;
-                }
-                let checksum = object.checksum;
-                if(checksum !== adapterChecksumMap[node]){
-                    adapter.log.debug('uploading adapter: ' + node);
-                    dbRef.doc(node).set(object);
-                    adapterChecksumMap[node] = checksum;
-                }
-            }
-    
-            for(let x in adapterChecksumMap){
-                if(allObjects[x] == null){
-                    dbRef.doc(x).delete();
-                    delete adapterChecksumMap[x];
-                }
-            }
-            
-            firestore.collection("users").doc(uid).collection('meta').doc('adapterChecksumMap').set(adapterChecksumMap);
-            
-            adapter.log.debug('uploading adapter end');
-        });
-    });
 }
 
 function uploadConfig(){
@@ -549,60 +354,11 @@ function uploadConfig(){
     firestore.collection("users").doc(uid).collection('locations').doc("home").set(config);
 }
 
-function uploadEnum(){
-
-    adapter.log.info('uploading enum');
-
-    adapter.getForeignObjects('*', 'enum', function (err, objects) {
-        
-        adapter.log.debug('uploading enum start');
-
-        let allEnums = [];
-        let enumRef = firestore.collection("users").doc(uid).collection('enums');
-        
-        for (let id in objects) {
-            if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
-                let node = getNode(id);
-                let object = mapper.getEnumObject(id, objects[id]);
-                let checksum = object.checksum;
-                allEnums[node] = true;
-                if(checksum !== enumChecksumMap[node]){
-                    adapter.log.debug('uploading enum: ' + node);
-                    enumRef.doc(node).set(object);
-                    enumChecksumMap[node] = checksum;
-                }
-                for (let key in object.members) {
-                    enum_states[object.members[key]] = true;
-                }
-            }
-        }
-
-        for(let x in enumChecksumMap){
-            if(allEnums[x] == null){
-                enumRef.doc(x).delete();
-                delete enumChecksumMap[x];
-            }
-        }
-        
-        firestore.collection("users").doc(uid).collection('meta').doc('enumChecksumMap').set(enumChecksumMap);
-
-        adapter.log.debug('uploading enum end');
-
-        uploadValues();
-    });
-}
-
-function uploadStates(){
-
-    adapter.log.info('uploading state');
+function initCommands(){
 
     adapter.getForeignObjects('*', 'state', function (err, objects) {
 
         adapter.log.debug('uploading state start');
-
-        let dbRef = firestore.collection("users").doc(uid).collection('states');
-        let allObjects = [];
-
         for (let id in objects) {
             if(objects[id].type === "state"){
                 let obj = objects[id];
@@ -614,81 +370,15 @@ function uploadStates(){
                     commands[id].alias  = getAliasName(obj);
                     adapter.log.info('custom found for id:' + id);
                 }
-                if(enum_states[id] === true){
-                    stateTypes[id] = objects[id].common.type;
-                    let node = getNode(id);
-                    let object = mapper.getStateObject(id, objects[id]);
-                    allObjects[node] = true;
-                    let checksum = object.checksum;
-                    if(checksum !== stateChecksumMap[node]){
-                        adapter.log.debug('uploading state: ' + node);
-                        dbRef.doc(node).set(object);
-                        stateChecksumMap[node] = checksum;
-                    }
-                }
             }
         }
-
-        for(let x in stateChecksumMap){
-            if(allObjects[x] == null){
-                dbRef.doc(x).delete();
-                delete stateChecksumMap[x];
-            }
-        }
-        
-        firestore.collection("users").doc(uid).collection('meta').doc('stateChecksumMap').set(stateChecksumMap);
 
         adapter.log.debug('uploading state end');
     });
 }
 
-function uploadValues(){
-
-    adapter.log.info('uploading values');
-
-    adapter.getForeignStates('*', function (err, states) {
-        adapter.log.debug('uploading values start');
-
-        let objectList = [];
-
-        for (let id in states) {
-            
-            if(enum_states[id] === true){
-                let node = getNode(id);
-                if(states[id] != null){
-                    let tmp = mapper.getState(id, states[id]);
-                    
-                    if(typeof states[id].val !== stateTypes[id]){
-                        adapter.log.warn('Value of state ' + id + ' has wrong type');
-                    }
-                    stateValues[id] = tmp.val;
-                    objectList[node] = tmp;
-                }
-            }
-        }
-
-        adapter.log.debug('uploading state values');
-        database.ref('states/' + uid).set(objectList, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' state values');
-            }
-        });
-
-        adapter.log.debug('uploading values end');
-    });
-}
-
 function registerListener(){
-    dbStateQueuesRef = database.ref('stateQueues/' + uid);
-    dbStateQueuesRef.on('child_added',function(data){
-        adapter.log.info('state update received: ' + JSON.stringify(data.val()));
-        let id = data.val().id;
-        let val = data.val().val;
-        setState(id, val);
-        dbStateQueuesRef.child(data.ref.key).remove();
-    });
+    
     dbDevicesRef = database.ref('devices/' + uid);
     dbDevicesRef.on('child_added',function(data){
         adapter.log.info('device update received: ' + JSON.stringify(data.val()));
@@ -743,20 +433,6 @@ function registerListener(){
 
         dbCommandQueuesRef.child(data.ref.key).remove();
     });
-}
-
-function setState(id, val){
-    let newVal = val;
-    if(stateTypes[id] == "number"){
-        newVal = parseFloat(val);
-    }else if(stateTypes[id] == "boolean"){
-        newVal = (val == "true");
-    }
-    if(id.indexOf('iogo.') === 1){
-        adapter.setState(id, newVal);
-    }else{
-        adapter.setForeignState(id, newVal);
-    }
 }
 
 function createDevice(id, data){
@@ -873,9 +549,8 @@ function setDevice(id, data){
 
 function removeListener(){
     adapter.log.info('triggered listener removed');
-    if(dbStateQueuesRef != undefined){
-        dbStateQueuesRef.off();
-    }
+    stateService && stateService.destroy();
+    
     if(dbDevicesRef != undefined){
         dDevicesRef.off();
     }
