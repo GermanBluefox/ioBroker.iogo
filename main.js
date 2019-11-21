@@ -32,7 +32,8 @@ require("firebase/storage");
 global.XMLHttpRequest = require("xhr2");
 let fs = require('fs');
 let path = require('path');
-let crypto = require('crypto');
+const InstanceSyncService = require('./lib/instance-service');
+const HostSyncService = require('./lib/host-service');
 
 let uid;
 let database;
@@ -45,11 +46,14 @@ let enum_states = {};
 let stateValues = {};
 let stateTypes = {};
 let stateSyncTime = {};
-let checksumMap = {};
+let adapterChecksumMap = {};
+let enumChecksumMap = {};
+let stateChecksumMap = {};
 const commands = {};
 let devices = {};
 let deviceAlive = false;
-
+let instance;
+let host;
 
 function startAdapter(options) {
     options = options || {};
@@ -117,33 +121,27 @@ function _objectChange(id, obj) {
     if(obj === null){
         if(id.indexOf('enum.rooms.') === 0 || id.indexOf('enum.functions.') === 0){
             firestore.collection("users").doc(uid).collection('enums').doc(node).delete();
-            delete checksumMap.enumChecksumMap[node];
-            firestore.collection("users").doc(uid).set(checksumMap);
+            delete enumChecksumMap[node];
+            firestore.collection("users").doc(uid).collection("meta").doc("enumChecksumMap").set(enumChecksumMap);
             adapter.log.debug('object (enum) ' + id + ' removed successfully');
         }
         if(enum_states[id] === true){
             firestore.collection("users").doc(uid).collection('states').doc(node).delete();
-            delete checksumMap.stateChecksumMap[node];
-            firestore.collection("users").doc(uid).set(checksumMap);
+            delete stateChecksumMap[node];
+            firestore.collection("users").doc(uid).collection("meta").doc("stateChecksumMap").set(stateChecksumMap);
             adapter.log.debug('object (state) ' + id + ' removed successfully');
         }
         if(id.indexOf('system.adapter') === 0 && (id.match(/\./g)||[]).length === 2){
             firestore.collection("users").doc(uid).collection('adapters').doc(node).delete();
-            delete checksumMap.adapterChecksumMap[node];
-            firestore.collection("users").doc(uid).set(checksumMap);
+            delete adapterChecksumMap[node];
+            firestore.collection("users").doc(uid).collection("meta").doc("adapterChecksumMap").set(adapterChecksumMap);
             adapter.log.debug('object (adapter) ' + id + ' removed successfully');
         }
         if(id.indexOf('system.adapter') === 0 && (id.match(/\./g)||[]).length === 3){
-            firestore.collection("users").doc(uid).collection('instances').doc(node).delete();
-            delete checksumMap.instanceChecksumMap[node];
-            firestore.collection("users").doc(uid).set(checksumMap);
-            adapter.log.debug('object (instance) ' + id + ' removed successfully');
+            instance.onObjectChange(id, obj);
         }
         if(id.indexOf('system.host') === 0){
-            firestore.collection("users").doc(uid).collection('hosts').doc(node).delete();
-            delete checksumMap.hostChecksumMap[node];
-            firestore.collection("users").doc(uid).set(checksumMap);
-            adapter.log.debug('object (host) ' + id + ' removed successfully');
+            host.onObjectChange(id, obj);
         }
         return;
     }
@@ -159,38 +157,18 @@ function _objectChange(id, obj) {
             .catch(function(error) {
                 adapter.log.error(error);
             });
-        checksumMap.adapterChecksumMap[node] = object.checksum;
-        firestore.collection("users").doc(uid).set(checksumMap);
+        adapterChecksumMap[node] = object.checksum;
+        firestore.collection("users").doc(uid).collection('meta').doc("adapterChecksumMap").set(adapterChecksumMap);
     }
 
     // update object (host)
     if(obj.type === "host"){
-        let object = mapper.getHostObject(id, obj);
-
-        firestore.collection('users').doc(uid).collection('hosts').doc(node).set(object)
-            .then(function() {
-                adapter.log.debug('object (host) ' + id + ' saved successfully');
-            })
-            .catch(function(error) {
-                adapter.log.error(error);
-            });
-        checksumMap.hostChecksumMap[node] = object.checksum;
-        firestore.collection("users").doc(uid).set(checksumMap);
+        host.onObjectChange(id, obj);
     }
 
     // update object (instance)
     if(obj.type === "instance"){
-        let object = mapper.getInstanceObject(id, obj);
-
-        firestore.collection('users').doc(uid).collection('instances').doc(node).set(object)
-            .then(function() {
-                adapter.log.debug('object (instance) ' + id + ' saved successfully');
-            })
-            .catch(function(error) {
-                adapter.log.error(error);
-            });
-        checksumMap.instanceChecksumMap[node] = object.checksum;
-        firestore.collection("users").doc(uid).set(checksumMap);
+        instance.onObjectChange(id, obj);
     }
     
     // update object (state)
@@ -204,8 +182,8 @@ function _objectChange(id, obj) {
             .catch(function(error) {
                 adapter.log.error(error);
             });
-        checksumMap.stateChecksumMap[node] = object.checksum;
-        firestore.collection("users").doc(uid).set(checksumMap);
+        stateChecksumMap[node] = object.checksum;
+        firestore.collection("users").doc(uid).collection('meta').doc("stateChecksumMap").set(stateChecksumMap);
     }
 
     if(obj.type === "state" && obj && obj.common && obj.common.custom && obj.common.custom[adapter.namespace] && obj.common.custom[adapter.namespace].enabled)
@@ -236,8 +214,8 @@ function _objectChange(id, obj) {
                 .catch(function(error) {
                     adapter.log.error(error);
                 });
-            checksumMap.enumChecksumMap[node] = object.checksum;
-            firestore.collection("users").doc(uid).set(checksumMap);
+            enumChecksumMap[node] = object.checksum;
+            firestore.collection("users").doc(uid).collection('meta').doc("enumChecksumMap").set(enumChecksumMap);
         }
     }
 }
@@ -292,36 +270,12 @@ function _stateChange(id, state) {
         }
     }
 
-    if(id.indexOf('system.adapter.') === 0){
-        let node = getNode(getInstanceFromId(id));
-        let attr = id.substr(id.lastIndexOf(".")+1);
-        let val = getStateVal(id, attr, state.val);
-
-        if(val !== null && deviceAlive === true){
-            database.ref('instances/' + uid + '/' + node + '/' + attr).set(val, function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.debug('instance ' + id + ' updated successfully');
-                }
-            });
-        }
+    if(id.indexOf('system.adapter.') === 0 && deviceAlive === true){
+        instance.onStateChange(id, state);
     }
 
     if(id.indexOf('system.host.') === 0){
-        let node = getNode(getHostFromId(id));
-        let attr = id.substr(id.lastIndexOf(".")+1);
-        let val = getStateVal(id, attr, state.val);
-
-        if(val !== null && deviceAlive === true){
-            database.ref('hosts/' + uid + '/' + node + '/' + attr).set(val, function(error) {
-                if (error) {
-                    adapter.log.error(error);
-                } else {
-                    adapter.log.debug('host ' + id + ' updated successfully');
-                }
-            });
-        }
+        host.onStateChange(id, state);
     }
 
     if(id === 'admin.0.info.updatesJson'){
@@ -428,7 +382,8 @@ function main() {
                             adapter.setState('info.connection', true, true);
                             adapter.subscribeForeignStates('*');
                             adapter.subscribeForeignObjects('*');
-                            
+                            instance = new InstanceSyncService(adapter, firestore, database, uid);
+                            host = new HostSyncService(adapter, firestore, database, uid);
                             initAppDevices();
                         }else{
                             adapter.log.error('ioGo licence expired. Please upgrade your account and start instance afterwards again.');
@@ -496,25 +451,42 @@ function getNode(id){
 }
 
 function initDatabase(){
-    let docRef = firestore.collection("users").doc(uid);
-    docRef.get().then(function(doc) {
+    let colRef = firestore.collection("users").doc(uid).collection('meta');
+    colRef.doc('adapterChecksumMap').get().then(function(doc) {
         if (doc.exists) {
-            checksumMap = doc.data();
-            adapter.log.info('checksummap geladen');
+            adapterChecksumMap = doc.data();
+            adapter.log.info('adapterChecksumMap geladen');
         } 
-        initDB()
+        uploadAdapter();
     }).catch(function(error) {
         adapter.log.error("Error getting document:", error);
-        initDB()
+        uploadAdapter();
     });
-}
 
-function initDB(){
-    uploadAdapter();
-    uploadHost();
-    uploadInstance();
-    uploadEnum();
-    uploadStates();
+    host && host.upload();
+    instance && instance.upload();
+    
+    colRef.doc('enumChecksumMap').get().then(function(doc) {
+        if (doc.exists) {
+            enumChecksumMap = doc.data();
+            adapter.log.info('enumChecksumMap geladen');
+        } 
+        uploadEnum();
+    }).catch(function(error) {
+        adapter.log.error("Error getting document:", error);
+        uploadEnum();
+    });
+    colRef.doc('stateChecksumMap').get().then(function(doc) {
+        if (doc.exists) {
+            stateChecksumMap = doc.data();
+            adapter.log.info('stateChecksumMap geladen');
+        } 
+        uploadStates();
+    }).catch(function(error) {
+        adapter.log.error("Error getting document:", error);
+        uploadStates();
+    });
+    uploadConfig();
     registerListener();
 }
 
@@ -536,7 +508,6 @@ function uploadAdapter(){
         
             adapter.log.debug('uploading adapter start');
 
-            let remoteChecksumMap = checksumMap.adapterChecksumMap || {};
             let dbRef = firestore.collection("users").doc(uid).collection('adapters');
             let allObjects = [];
     
@@ -548,102 +519,34 @@ function uploadAdapter(){
                     object.availableVersion = valObject[object.name].availableVersion;
                 }
                 let checksum = object.checksum;
-                if(checksum !== remoteChecksumMap[node]){
+                if(checksum !== adapterChecksumMap[node]){
                     adapter.log.debug('uploading adapter: ' + node);
                     dbRef.doc(node).set(object);
-                    remoteChecksumMap[node] = checksum;
+                    adapterChecksumMap[node] = checksum;
                 }
             }
     
-            for(let x in remoteChecksumMap){
+            for(let x in adapterChecksumMap){
                 if(allObjects[x] == null){
                     dbRef.doc(x).delete();
-                    delete remoteChecksumMap[x];
+                    delete adapterChecksumMap[x];
                 }
             }
             
-            checksumMap.adapterChecksumMap = remoteChecksumMap;
-            firestore.collection("users").doc(uid).set(checksumMap);
+            firestore.collection("users").doc(uid).collection('meta').doc('adapterChecksumMap').set(adapterChecksumMap);
             
             adapter.log.debug('uploading adapter end');
         });
     });
 }
 
-function uploadHost(){
+function uploadConfig(){
+    adapter.log.info('uploading config');
+    let config = adapter.config;
+    delete config.password;
+    delete config.email;
 
-    adapter.log.info('uploading host');
-
-    adapter.getForeignObjects('*', 'host', function (err, objects) {
-        
-        adapter.log.debug('uploading host start');
-
-        let remoteChecksumMap = checksumMap.hostChecksumMap || {};
-        let dbRef = firestore.collection("users").doc(uid).collection('hosts');
-        let allObjects = [];
-
-        for (let id in objects) {
-            let node = getNode(id);
-            let object = mapper.getHostObject(id, objects[id]);
-            allObjects[node] = true;
-            let checksum = object.checksum;
-            if(checksum !== remoteChecksumMap[node]){
-                adapter.log.debug('uploading host: ' + node);
-                dbRef.doc(node).set(object);
-                remoteChecksumMap[node] = checksum;
-            }
-        }
-
-        for(let x in remoteChecksumMap){
-            if(allObjects[x] == null){
-                dbRef.doc(x).delete();
-                delete remoteChecksumMap[x];
-            }
-        }
-        
-        checksumMap.hostChecksumMap = remoteChecksumMap;
-        firestore.collection("users").doc(uid).set(checksumMap);
-
-        adapter.log.debug('uploading host end');
-    });
-}
-
-function uploadInstance(){
-
-    adapter.log.info('uploading instance');
-
-    adapter.getForeignObjects('*', 'instance', function (err, objects) {
-        
-        adapter.log.debug('uploading instance start');
-
-        let remoteChecksumMap = checksumMap.instanceChecksumMap || {};
-        let dbRef = firestore.collection("users").doc(uid).collection('instances');
-        let allObjects = [];
-
-        for (let id in objects) {
-            let node = getNode(id);
-            let object = mapper.getInstanceObject(id, objects[id]);
-            allObjects[node] = true;
-            let checksum = object.checksum;
-            if(checksum !== remoteChecksumMap[node]){
-                adapter.log.debug('uploading instance: ' + node);
-                dbRef.doc(node).set(object);
-                remoteChecksumMap[node] = checksum;
-            }
-        }
-
-        for(let x in remoteChecksumMap){
-            if(allObjects[x] == null){
-                dbRef.doc(x).delete();
-                delete remoteChecksumMap[x];
-            }
-        }
-        
-        checksumMap.instanceChecksumMap = remoteChecksumMap;
-        firestore.collection("users").doc(uid).set(checksumMap);
-
-        adapter.log.debug('uploading instance end');
-    });
+    firestore.collection("users").doc(uid).collection('locations').doc("home").set(config);
 }
 
 function uploadEnum(){
@@ -655,7 +558,6 @@ function uploadEnum(){
         adapter.log.debug('uploading enum start');
 
         let allEnums = [];
-        let enumChecksumMap = checksumMap.enumChecksumMap || {};
         let enumRef = firestore.collection("users").doc(uid).collection('enums');
         
         for (let id in objects) {
@@ -682,8 +584,7 @@ function uploadEnum(){
             }
         }
         
-        checksumMap.enumChecksumMap = enumChecksumMap;
-        firestore.collection("users").doc(uid).set(checksumMap);
+        firestore.collection("users").doc(uid).collection('meta').doc('enumChecksumMap').set(enumChecksumMap);
 
         adapter.log.debug('uploading enum end');
 
@@ -699,7 +600,6 @@ function uploadStates(){
 
         adapter.log.debug('uploading state start');
 
-        let remoteChecksumMap = checksumMap.stateChecksumMap || {};
         let dbRef = firestore.collection("users").doc(uid).collection('states');
         let allObjects = [];
 
@@ -720,39 +620,26 @@ function uploadStates(){
                     let object = mapper.getStateObject(id, objects[id]);
                     allObjects[node] = true;
                     let checksum = object.checksum;
-                    if(checksum !== remoteChecksumMap[node]){
+                    if(checksum !== stateChecksumMap[node]){
                         adapter.log.debug('uploading state: ' + node);
                         dbRef.doc(node).set(object);
-                        remoteChecksumMap[node] = checksum;
+                        stateChecksumMap[node] = checksum;
                     }
                 }
             }
         }
 
-        for(let x in remoteChecksumMap){
+        for(let x in stateChecksumMap){
             if(allObjects[x] == null){
                 dbRef.doc(x).delete();
-                delete remoteChecksumMap[x];
+                delete stateChecksumMap[x];
             }
         }
         
-        checksumMap.stateChecksumMap = remoteChecksumMap;
-        firestore.collection("users").doc(uid).set(checksumMap);
+        firestore.collection("users").doc(uid).collection('meta').doc('stateChecksumMap').set(stateChecksumMap);
 
         adapter.log.debug('uploading state end');
     });
-}
-
-function getInstanceFromId(id){
-    let tmp = id.substr(15);
-    tmp = tmp.substr(0, tmp.lastIndexOf('.'));
-    return tmp;
-}
-
-function getHostFromId(id){
-    let tmp = id.substr(12);
-    tmp = tmp.substr(0, tmp.lastIndexOf('.'));
-    return tmp;
 }
 
 function uploadValues(){
@@ -763,8 +650,6 @@ function uploadValues(){
         adapter.log.debug('uploading values start');
 
         let objectList = [];
-        let instanceList = [];
-        let hostList = [];
 
         for (let id in states) {
             
@@ -780,38 +665,6 @@ function uploadValues(){
                     objectList[node] = tmp;
                 }
             }
-            if(id.indexOf('system.adapter.') === 0 && id.lastIndexOf('upload') === -1){
-                let node = getNode(getInstanceFromId(id));
-                if(states[id] != null){
-                    if(instanceList[node] === undefined){
-                        instanceList[node] = {};
-                    }
-                    if(instanceList[node]['id'] === undefined){
-                        instanceList[node]['id'] = 'system.adapter.' + getInstanceFromId(id);
-                    }
-                    let attr = id.substr(id.lastIndexOf(".")+1);
-                    let val = getStateVal(id, attr, states[id].val);
-                    if(val !== null){
-                        instanceList[node][attr] = val;
-                    }
-                }
-            }
-            if(id.indexOf('system.host.') === 0){
-                let node = getNode(getHostFromId(id));
-                if(states[id] != null){
-                    if(hostList[node] === undefined){
-                        hostList[node] = {};
-                    }
-                    if(hostList[node]['id'] === undefined){
-                        hostList[node]['id'] = 'system.host.' + getHostFromId(id);
-                    }
-                    let attr = id.substr(id.lastIndexOf(".")+1);
-                    let val = getStateVal(id, attr, states[id].val);
-                    if(val !== null){
-                        hostList[node][attr] = val;
-                    }
-                }
-            }
         }
 
         adapter.log.debug('uploading state values');
@@ -822,25 +675,7 @@ function uploadValues(){
                 adapter.log.info('database initialized with ' + Object.keys(objectList).length + ' state values');
             }
         });
-        
-        adapter.log.debug('uploading instance values');
-        database.ref('instances/' + uid).set(instanceList, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('database initialized with ' + Object.keys(instanceList).length + ' instance values');
-            }
-        });
 
-        adapter.log.debug('uploading host values');
-        database.ref('hosts/' + uid).set(hostList, function(error) {
-            if (error) {
-                adapter.log.error(error);
-            } else {
-                adapter.log.info('database initialized with ' + Object.keys(hostList).length + ' host values');
-            }
-        });
-        
         adapter.log.debug('uploading values end');
     });
 }
