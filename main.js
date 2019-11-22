@@ -14,10 +14,6 @@ let utils = require('@iobroker/adapter-core'); // Get common adapter utils
 // adapter will be restarted automatically every time as the configuration changed, e.g system.adapter.iogo.0
 let adapter;
 
-let lastMessageTime = 0;
-let lastMessageText = '';
-let users = {};
-
 let config = {
     apiKey: "AIzaSyBxrrLcJKMt33rPPfqssjoTgcJ3snwCO30",
     authDomain: "iobroker-iogo.firebaseapp.com",
@@ -29,12 +25,12 @@ let config = {
 let firebase = require("firebase");
 require("firebase/storage");
 global.XMLHttpRequest = require("xhr2");
-let fs = require('fs');
-let path = require('path');
+
 const AdapterSyncService = require('./lib/adapter-service');
 const EnumSyncService = require('./lib/enum-service');
 const HostSyncService = require('./lib/host-service');
 const InstanceSyncService = require('./lib/instance-service');
+const MessageSendService = require('./lib/message-service');
 const StateSyncService = require('./lib/state-service');
 
 let uid;
@@ -50,6 +46,7 @@ let adapterService;
 let enumService;
 let hostService;
 let instanceService;
+let messageService;
 let stateService;
 
 function startAdapter(options) {
@@ -79,7 +76,7 @@ function startAdapter(options) {
         // is called when databases are connected and adapter received configuration.
         // start here!
         ready: function () {
-            main();
+            _ready();
         }
     });
 
@@ -168,13 +165,8 @@ function _stateChange(id, state) {
     adapter.log.silly('state changed id:' + id);
 
     if(id.endsWith('.token')){
-        let user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
-        if(state){
-            users[user_name] = state.val;
-        }else{
-            delete users[user_name];
-        }
-        adapter.log.info('user ' + user_name + ' changed');
+        messageService.onStateChange(id, state);
+        
     }
     if(id.indexOf("iogo.") === 0 && id.endsWith('.alive')){
         calcDeviceAlive(id, state.val);
@@ -208,31 +200,7 @@ function _stateChange(id, state) {
     }
 }
 
-function getReportStatus(id, state) {
-    adapter.log.info('getReportStatus for id:' + JSON.stringify(commands[id]));
-    if (commands[id].type === 'boolean') {
-        return `${commands[id].alias} => ${state.val ? commands[id].onStatus || 'ON' : commands[id].offStatus || 'OFF'}`;
-    } else {
-        if (commands[id].states && commands[id].states[state.val] !== undefined) {
-            state.val = commands[id].states[state.val];
-        }
-        return `${commands[id].alias} => ${state.val}`;
-    }
-}
-
-function getAliasName(obj) {
-    if (obj.common.custom[adapter.namespace].alias) {
-        return obj.common.custom[adapter.namespace].alias;
-    } else {
-        let name = obj.common.name;
-        if (typeof name === 'object') {
-            name = name[systemLang] || name.en;
-        }
-        return name || obj._id;
-    }
-}
-
-function main() {
+function _ready() {
     if(adapter.config.email == null || adapter.config.password == null){
         adapter.log.warn('Credentials missing, please add email and password in config!');
         return;
@@ -269,6 +237,7 @@ function main() {
                             enumService = new EnumSyncService(adapter, firestore, database, uid);
                             hostService = new HostSyncService(adapter, firestore, database, uid);
                             instanceService = new InstanceSyncService(adapter, firestore, database, uid);
+                            messageService = new MessageSendService(adapter, firebase.storage(), database, uid)
                             stateService = new StateSyncService(adapter, firestore, database, uid);
                             
                             initAppDevices();
@@ -296,6 +265,43 @@ function main() {
     });
 }
 
+function _message(obj){
+    if (!obj || !obj.command) return;
+
+    switch (obj.command) {
+        case 'send':
+            {
+                if(!loggedIn) return;
+
+                messageService.send(obj);
+            }
+    }
+}
+
+function getReportStatus(id, state) {
+    adapter.log.info('getReportStatus for id:' + JSON.stringify(commands[id]));
+    if (commands[id].type === 'boolean') {
+        return `${commands[id].alias} => ${state.val ? commands[id].onStatus || 'ON' : commands[id].offStatus || 'OFF'}`;
+    } else {
+        if (commands[id].states && commands[id].states[state.val] !== undefined) {
+            state.val = commands[id].states[state.val];
+        }
+        return `${commands[id].alias} => ${state.val}`;
+    }
+}
+
+function getAliasName(obj) {
+    if (obj.common.custom[adapter.namespace].alias) {
+        return obj.common.custom[adapter.namespace].alias;
+    } else {
+        let name = obj.common.name;
+        if (typeof name === 'object') {
+            name = name[systemLang] || name.en;
+        }
+        return name || obj._id;
+    }
+}
+
 function calcDeviceAlive(id, val){
     if(val !== null){
         devices[id] = val;
@@ -313,16 +319,6 @@ function calcDeviceAlive(id, val){
 
 function initAppDevices(){
     adapter.log.info('initialize app devices')
-    adapter.getStates('*.token', function (err, states) {
-        for (let id in states) {
-            if(states[id] !== null){
-                let val = states[id].val;
-                let user_name = id.replace('iogo.'+adapter.instance+'.','').replace('.token','');
-                users[user_name] = val;
-                adapter.log.info('device ' + user_name + ' captured');
-            }
-        }
-    });
     adapter.getStates('*.alive', function (err, states) {
         for (let id in states) {
             if(states[id] !== null){
@@ -559,189 +555,7 @@ function removeListener(){
     }
 }
 
-function _message(obj){
-    if (!obj || !obj.command) return;
 
-    switch (obj.command) {
-        case 'send':
-            {
-                if(!loggedIn) return;
-
-                // filter out double messages
-                let json = JSON.stringify(obj);
-                if (lastMessageTime && lastMessageText === JSON.stringify(obj) && new Date().getTime() - lastMessageTime < 1200) {
-                    adapter.log.debug('Filter out double message [first was for ' + (new Date().getTime() - lastMessageTime) + 'ms]: ' + json);
-                    return;
-                }
-            
-                lastMessageTime = new Date().getTime();
-                lastMessageText = json;
-
-                if (obj.message) {
-                    let count;
-                    if (typeof obj.message === 'object') {
-                        count = sendMessage(obj.message.text, obj.message.user, obj.message.title, obj.message.url);
-                    } else {
-                        count = sendMessage(obj.message);
-                    }
-                    if (obj.callback) adapter.sendTo(obj.from, obj.command, count, obj.callback);
-                }
-            }
-    }
-}
-
-function sendMessage(text, username, title, url) {
-    if (!text && text !== 0) {
-        adapter.log.warn('Invalid text: null');
-        return;
-    }
-
-    // convert
-    if (text !== undefined && text !== null && typeof text !== 'object') {
-        text = text.toString();
-    }
-
-    // Get a key for a new Post.
-    let messageKey = database.ref('messageQueues/' + uid).push().key;
-
-    if (text && (typeof text === 'string' && text.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(text) ))) {
-        sendImage(text, messageKey).then(function(downloadurl){
-            sendMessageToUser(null, username, title, messageKey, downloadurl, text)
-        });
-    }else if(url && (typeof url === 'string' && url.match(/\.(jpg|png|jpeg|bmp)$/i) && (fs.existsSync(url) ))) {
-        sendImage(url, messageKey).then(function(downloadurl){
-            sendMessageToUser(text, username, title, messageKey, downloadurl, url)
-        });
-    }else{
-        sendMessageToUser(text, username, title, messageKey)
-    }
-}
-
-function getFilteredUsers(username){
-    let arrUser = {};
-
-    if (username) {
-
-        let userarray = username.replace(/\s/g,'').split(',');
-        let matches = 0;
-        userarray.forEach(function (value) {
-            if (users[value] !== undefined) {
-                matches++;
-                arrUser[value] = users[value];
-            }
-        });
-        if (userarray.length !== matches) adapter.log.warn(userarray.length - matches + ' of ' + userarray.length + ' recipients are unknown!');
-        return arrUser;
-    } else {
-        return users;
-    }
-}
-
-function sendMessageToUser(text, username, title, messageKey, url, filename){
-    let count = 0;
-    let u;
-    let recipients = getFilteredUsers(username);
-
-    for (u in recipients) {
-        count += _sendMessageHelper(users[u], u, text, title, messageKey, url, filename);
-    }
-    return count;
-}
-
-function _sendMessageHelper(token, username, text, title, messageKey, url, filename) {
-    if (!token) {
-        adapter.log.warn('Invalid token for user: ' + username);
-        return;
-    }
-    let count = 0;
-    
-    if(title === undefined || title == null){
-        title = 'news';
-    }
-
-    adapter.log.debug('Send message to "' + username + '": ' + text + ' (title:' + title + ' url:' + url + ')');
-
-    let timestamp = new Date().getTime();
-
-    // A message entry.
-    let mesasageData = {
-        to: token,
-        title: title, 
-        text: text,
-        ts: timestamp,
-        url: url || null
-    };
-
-    if(url !== undefined){
-        mesasageData.img = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(filename);
-    }
-
-    adapter.log.info('MessageData:' + JSON.stringify(mesasageData));
-
-    // Write the new post's data simultaneously in the posts list and the user's post list.
-    let updates = {};
-    updates['/messageQueues/' + uid + '/' + username + '/' + messageKey] = mesasageData;
-
-    database.ref().update(updates, function(error) {
-        if (error) {
-            adapter.log.error(error);
-        } else {
-            adapter.log.info('message saved successfully');
-        }
-    });
-    
-    return count;
-}
-
-function sendImage(fileName, messageKey){
-    return new Promise((resolve, reject) => {
-        let storage = firebase.storage();
-        let storageRef = storage.ref();
-        let retUrl;
-        
-        retUrl = 'push_' + messageKey + '_' + new Date().getTime().toString() + path.extname(fileName);
-        
-        let imageRef = storageRef.child('messages').child(uid).child(retUrl);
-
-        let file = fs.readFileSync(fileName);
-        
-        imageRef.put(file).then(function(snapshot) {
-            console.log('Uploaded a blob or file!');
-        });
-
-
-        let uploadTask = imageRef.put(file);
-
-        // Register three observers:
-        // 1. 'state_changed' observer, called any time the state changes
-        // 2. Error observer, called on failure
-        // 3. Completion observer, called on successful completion
-        uploadTask.on('state_changed', function(snapshot){
-            // Observe state change events such as progress, pause, and resume
-            // Get task progress, including the number of bytes uploaded and the total number of bytes to be uploaded
-            let progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            adapter.log.debug('Upload is ' + progress + '% done');
-            switch (snapshot.state) {
-            case firebase.storage.TaskState.PAUSED: // or 'paused'
-                adapter.log.debug('Upload is paused');
-                break;
-            case firebase.storage.TaskState.RUNNING: // or 'running'
-                adapter.log.debug('Upload is running');
-                break;
-            }
-        }, function(error) {
-            adapter.log.error('Error: ' + JSON.stringify(error));
-            reject();
-        }, function() {
-            // Handle successful uploads on complete
-            uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
-                adapter.log.info('File ' + retUrl + ' uploaded');
-                resolve(downloadURL);
-            });
-            
-        });
-    });
-}
 
 // If started as allInOne/compact mode => return function to create instance
 if (module && module.parent) {
