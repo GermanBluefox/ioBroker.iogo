@@ -32,6 +32,7 @@ const EnumSyncService = require('./lib/enum-service');
 const DeviceService = require('./lib/device-service');
 const HostSyncService = require('./lib/host-service');
 const InstanceSyncService = require('./lib/instance-service');
+const LocationService = require('./lib/location-service');
 const MessageSendService = require('./lib/message-service');
 const StateSyncService = require('./lib/state-service');
 
@@ -47,6 +48,7 @@ let enumService;
 let deviceService;
 let hostService;
 let instanceService;
+let locationService;
 let messageService;
 let stateService;
 
@@ -109,7 +111,7 @@ function _objectChange(id, obj) {
     hostService.onObjectChange(id, obj);
     instanceService.onObjectChange(id, obj);
     messageService.onObjectChange(id, obj);
-    stateService.objectChange(id, obj);
+    stateService.onObjectChange(id, obj);
 
     if(obj === null){
         return;
@@ -211,6 +213,7 @@ function initServices(){
     enumService = new EnumSyncService(adapter, firestore, database, uid);
     hostService = new HostSyncService(adapter, firestore, database, uid);
     instanceService = new InstanceSyncService(adapter, firestore, database, uid);
+    locationService = new LocationService(adapter, firestore, database, uid);
     messageService = new MessageSendService(adapter, firebase.storage(), database, uid)
     stateService = new StateSyncService(adapter, firestore, database, uid);
 
@@ -223,9 +226,8 @@ function uploadConfig(){
     delete config.password;
     delete config.email;
 
-    firestore.collection("users").doc(uid).collection('locations').doc("home").set(config);
+    //firestore.collection("users").doc(uid).collection('meta').doc("config").set(config);
 }
-
 
 function destroyServices(){
     adapter.log.info('triggered listener removed');
@@ -241,4 +243,4 @@ if (module && module.parent) {
 } else {
     // or start the instance directly
     startAdapter();
-} 
+}
