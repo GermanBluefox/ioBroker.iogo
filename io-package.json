@@ -1,11 +1,15 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.4.17",
+        "version": "0.5.0",
         "news": {
+			"0.5.x": {
+                "en": "Added support of geofence feature",
+                "de": "Unterstützung von Geofence"
+            },
             "0.4.x": {
                 "en": "Changes for ioGo app version 2.0.0+",
-                "de": "Anpassungen fpr app Version 2.0.0+"
+                "de": "Anpassungen für app Version 2.0.0+"
             },
             "0.3.x": {
                 "en": "added support of compact mode",
