@@ -13,7 +13,7 @@
     }
   ],
   "dependencies": {
-    "@iobroker/adapter-core": "^1.0.3",
+    "@iobroker/adapter-core": "^2.0.0",
     "firebase": "^6.0.2",
     "npm": "^6.7.0",
     "xhr2": "^0.1.4"
