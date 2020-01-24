@@ -107,6 +107,7 @@ function _objectChange(id, obj) {
     adapter.log.debug('object changed id:' + id);
 
     adapterService.onObjectChange(id, obj);
+    deviceService.onObjectChange(id, obj);
     enumService.onObjectChange(id, obj);
     hostService.onObjectChange(id, obj);
     instanceService.onObjectChange(id, obj);
