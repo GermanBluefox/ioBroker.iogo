@@ -48,5 +48,5 @@
     "test:unit": "mocha test/unit --exit",
     "test:integration": "mocha test/integration --exit"
   },
-  "version": "0.5.1"
+  "version": "0.5.2"
 }

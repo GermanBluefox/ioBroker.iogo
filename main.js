@@ -111,6 +111,7 @@ function _objectChange(id, obj) {
     enumService.onObjectChange(id, obj);
     hostService.onObjectChange(id, obj);
     instanceService.onObjectChange(id, obj);
+    locationService.onObjectChange(id, obj);
     messageService.onObjectChange(id, obj);
     stateService.onObjectChange(id, obj);
 
