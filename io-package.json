@@ -69,7 +69,7 @@
             "pl": "Adapter łączący ioBroker z aplikacją smarthome ioGo"
         },
         "authors": [
-            "Nis Nagel <support@nisnagel.de>"
+            "Nis Nagel <info@iogo.app>"
         ],
         "platform": "Javascript/Node.js",
         "mode": "daemon",

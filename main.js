@@ -218,17 +218,6 @@ function initServices(){
     locationService = new LocationService(adapter, firestore, database, uid);
     messageService = new MessageSendService(adapter, firebase.storage(), database, uid)
     stateService = new StateSyncService(adapter, firestore, database, uid);
-
-    uploadConfig();
-}
-
-function uploadConfig(){
-    adapter.log.info('uploading config');
-    let config = adapter.config;
-    delete config.password;
-    delete config.email;
-
-    //firestore.collection("users").doc(uid).collection('meta').doc("config").set(config);
 }
 
 function destroyServices(){

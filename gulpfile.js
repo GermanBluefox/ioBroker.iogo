@@ -374,7 +374,7 @@ gulp.task('updatePackages', function (done) {
 gulp.task('rename', function ()  {
     var newname;
     var author = 'Nis Nagel';
-    var email  = 'support@nisnagel.de';
+    var email  = 'info@iogo.app';
     for (var a = 0; a < process.argv.length; a++) {
         if (process.argv[a] === '--name') {
             newname = process.argv[a + 1]
@@ -429,7 +429,7 @@ gulp.task('rename', function ()  {
             replacement: author
         },
         {
-            match: /support@nisnagel.de/g,
+            match: /info@iogo.app/g,
             replacement: email
         }
     ];
