@@ -118,10 +118,7 @@ function _objectChange(id, obj) {
     if(obj === null){
         return;
     }
-
-    if(obj.type === "enum"){
-        stateService.checkEnumMembers(id, obj);
-    }
+    
 }
 
 function _stateChange(id, state) {
