@@ -176,12 +176,9 @@ function _ready() {
                         adapter.subscribeForeignObjects('*');
                     }else{
                         adapter.log.error('ioGo licence expired. Please upgrade your account and start instance afterwards again.');
-                        setTimeout(function(){adapter.terminate('ioGo licence expired')}, 1000);
                     }
                 }else{
                     adapter.log.error('ioGo licence needed. Please upgrade your account and start instance afterwards again.');
-                    setTimeout(function(){adapter.terminate('ioGo licence needed')}, 1000);
-                    
                 }
             })
             .catch((error) => {
