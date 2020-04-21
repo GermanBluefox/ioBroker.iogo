@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.5.8",
+        "version": "0.5.9",
         "news": {
+            "0.5.9": {
+                "en": "Improve sync of object changes",
+                "de": "Synchronisieren von Objekten verbessert"
+            },
 			"0.5.x": {
                 "en": "Added support of geofence feature",
                 "de": "Unterstützung von Geofence"
