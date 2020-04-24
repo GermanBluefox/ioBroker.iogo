@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.5.9",
+        "version": "0.5.10",
         "news": {
+            "0.5.9": {
+                "en": "Fix images in push notification",
+                "de": "Versenden von Bildern unter js-controller 3.x behoben"
+            },
             "0.5.9": {
                 "en": "Improve sync of object changes",
                 "de": "Synchronisieren von Objekten verbessert"
