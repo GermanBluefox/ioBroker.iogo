@@ -3,6 +3,10 @@
         "name": "iogo",
         "version": "0.5.11",
         "news": {
+            "0.5.11": {
+                "en": "Add expiry to messages",
+                "de": "Versenden von Nachrichten mit Ablaufzeit"
+            },
             "0.5.10": {
                 "en": "Fix images in push notification",
                 "de": "Versenden von Bildern unter js-controller 3.x behoben"
@@ -11,7 +15,7 @@
                 "en": "Improve sync of object changes",
                 "de": "Synchronisieren von Objekten verbessert"
             },
-	"0.5.x": {
+	        "0.5.x": {
                 "en": "Added support of geofence feature",
                 "de": "Unterstützung von Geofence"
             },
