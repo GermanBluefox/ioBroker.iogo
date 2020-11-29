@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.5.11",
+        "version": "0.5.12",
         "news": {
-            "0.5.11": {
+            "0.5.12": {
                 "en": "Add expiry to messages",
                 "de": "Versenden von Nachrichten mit Ablaufzeit"
             },
