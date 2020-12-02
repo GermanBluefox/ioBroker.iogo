@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.5.12",
+        "version": "0.6.0",
         "news": {
+            "0.6.0": {
+                "en": "Reduce network traffic while syncing instanes and hosts",
+                "de": "Synchronisation von Instanzen und Hosts auf Basiswerte reduzieren"
+            },
             "0.5.12": {
                 "en": "Add expiry to messages",
                 "de": "Versenden von Nachrichten mit Ablaufzeit"
