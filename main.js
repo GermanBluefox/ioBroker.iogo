@@ -133,7 +133,6 @@ function _stateChange(id, state) {
     stateService.onStateChange(id, state);
 
     if(deviceService.isAlive()){
-        instanceService.onStateChange(id, state);
         hostService.onStateChange(id, state);
     }
 
