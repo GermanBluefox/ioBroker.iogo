@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.6.0",
+        "version": "0.6.1",
         "news": {
-            "0.6.0": {
+            "0.6.1": {
                 "en": "Reduce network traffic while syncing instanes and hosts",
                 "de": "Synchronisation von Instanzen und Hosts auf Basiswerte reduzieren"
             },
