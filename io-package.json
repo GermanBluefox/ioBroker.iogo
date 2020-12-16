@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.6.4",
+        "version": "0.6.5",
         "news": {
-            "0.6.4": {
+            "0.6.5": {
                 "en": "Reduce network traffic while syncing instanes and hosts",
                 "de": "Synchronisation von Instanzen und Hosts auf Basiswerte reduzieren"
             },
@@ -102,8 +102,8 @@
         "messagebox": true,
         "supportCustoms": true,
         "restartAdapters": [],
-        "connectionType": "push",
-        "dataSource": "cloud"
+        "connectionType": "cloud",
+        "dataSource": "push"
     },
     "native": {
         "email": "",
