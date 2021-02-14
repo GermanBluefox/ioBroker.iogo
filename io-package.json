@@ -1,8 +1,12 @@
 {
     "common": {
         "name": "iogo",
-        "version": "0.6.5",
+        "version": "0.6.6",
         "news": {
+            "0.6.6": {
+                "en": "Bugfix systemLang in MessageService",
+                "de": "Bugfix systemLang in MessageService"
+            },
             "0.6.5": {
                 "en": "Reduce network traffic while syncing instanes and hosts",
                 "de": "Synchronisation von Instanzen und Hosts auf Basiswerte reduzieren"
