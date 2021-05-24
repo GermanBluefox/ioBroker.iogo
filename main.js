@@ -79,9 +79,9 @@ function startAdapter(options) {
     });
 
     adapter = new utils.Adapter(options);
-    
+
     return adapter;
-};
+}
 
 function _unload(callback){
     try {
@@ -118,7 +118,7 @@ function _objectChange(id, obj) {
     if(obj === null){
         return;
     }
-    
+
 }
 
 function _stateChange(id, state) {

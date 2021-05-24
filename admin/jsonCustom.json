@@ -1,0 +1,37 @@
+{
+    "i18n": true,
+    "type": "panel",
+    "items": {
+        "_staticText": {
+            "sm": 12,
+            "type": "staticText",
+            "text": "enable push notification"
+        },
+        "alias": {
+            "newLine": true,
+            "type": "text",
+            "label": "Alias",
+            "max": 255,
+            "default": "",
+            "sm": 12,
+            "help": "Leave empty to use object's name"
+        },
+        "offStatus": {
+            "newLine": true,
+            "type": "text",
+            "label": "OFF status",
+            "hidden": "!customObj || !customObj.common || customObj.common.type !== 'boolean'",
+            "sm": 6,
+            "default": "",
+            "help": "Default - 'OFF'"
+        },
+        "onStatus": {
+            "type": "text",
+            "label": "ON status",
+            "hidden": "!customObj || !customObj.common || customObj.common.type !== 'boolean'",
+            "sm": 6,
+            "default": "",
+            "help": "Default - 'ON'"
+        }
+    }
+}

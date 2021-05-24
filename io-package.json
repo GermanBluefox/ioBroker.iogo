@@ -22,47 +22,6 @@
             "0.5.9": {
                 "en": "Improve sync of object changes",
                 "de": "Synchronisieren von Objekten verbessert"
-            },
-	        "0.5.x": {
-                "en": "Added support of geofence feature",
-                "de": "Unterstützung von Geofence"
-            },
-            "0.4.x": {
-                "en": "Changes for ioGo app version 2.0.0+",
-                "de": "Anpassungen für app Version 2.0.0+"
-            },
-            "0.3.x": {
-                "en": "added support of compact mode",
-                "de": "Unterstützung für Kompaktmodus hinzugefügt",
-                "ru": "перейти в компактный режим",
-                "pt": "mudar para o modo compacto",
-                "nl": "verander naar compacte modus",
-                "fr": "passer en mode compact",
-                "it": "passare alla modalità compatta",
-                "es": "cambiar al modo compacto",
-                "pl": "przejdź do trybu kompaktowego"
-            },
-            "0.2.x": {
-                "en": "added pro features",
-                "de": "pro features hinzugefügt",
-                "ru": "добавлены функции pro",
-                "pt": "recursos pro adicionados",
-                "nl": "toegevoegde professionele functies",
-                "fr": "ajout de fonctionnalités professionnelles",
-                "it": "aggiunte funzionalità professionali",
-                "es": "características pro añadidas",
-                "pl": "dodano funkcje pro"
-            },
-            "0.1.2": {
-                "en": "initial version",
-                "de": "erste Version",
-                "ru": "Первоначальная версия",
-                "pt": "versão inicial",
-                "nl": "eerste versie",
-                "fr": "version initiale",
-                "it": "versione iniziale",
-                "es": "versión inicial",
-                "pl": "początkowa wersja"
             }
         },
 		"title": "ioGo - smarthome to go",
@@ -107,8 +66,13 @@
         "supportCustoms": true,
         "restartAdapters": [],
         "connectionType": "cloud",
-        "dataSource": "push"
+        "dataSource": "push",
+        "adminUI": {
+            "config": "json",
+            "custom": "json"
+        }
     },
+    "protectedNative": ["email", "password"],
     "native": {
         "email": "",
         "password": ""

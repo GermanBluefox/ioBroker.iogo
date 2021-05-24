@@ -4,6 +4,7 @@
   "My select": "Mijn select",
   "on save adapter restarts with new config immediately": "on save-adapter wordt onmiddellijk opnieuw opgestart met nieuwe config",
   "template adapter settings": "sjabloon-adapterinstellingen",
-  "test1": "Test 1",
-  "test2": "Test 2"
+  "enable push notification": "Schakel push-notificatie in",
+  "email": "E-mailadres",
+  "password": "Wachtwoord"
 }

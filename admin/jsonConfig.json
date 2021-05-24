@@ -1,0 +1,23 @@
+{
+    "i18n": true,
+    "type": "panel",
+    "items": {
+        "email": {
+            "newLine": true,
+            "type": "text",
+            "label": "email",
+            "default": "",
+            "sm": 12,
+            "md": 6
+        },
+        "password": {
+            "newLine": true,
+            "type": "password",
+            "label": "password",
+            "repeat": true,
+            "sm": 12,
+            "md": 6,
+            "default": ""
+        }
+    }
+}

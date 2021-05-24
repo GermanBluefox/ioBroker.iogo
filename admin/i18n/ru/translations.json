@@ -4,6 +4,7 @@
   "My select": "Выбор",
   "on save adapter restarts with new config immediately": "При сохранении настроек адаптера он сразу же перезапускается",
   "template adapter settings": "Пример",
-  "test1": "Тест 1",
-  "test2": "Тест 2"
+  "enable push notification": "Включить push-уведомление",
+  "email": "Адрес электронной почты",
+  "password": "Пароль"
 }
