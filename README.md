@@ -67,7 +67,7 @@ sendTo('iogo', {
 -->
 
 ## Changelog
-### __WORK IN PROGRESS__
+### 0.7.0 (2021-05-24)
 * (bluefox) Added support of Admin5
 
 ### 0.6.x
